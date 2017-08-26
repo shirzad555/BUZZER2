@@ -1,0 +1,7 @@
+
+**** Build of configuration FlashROM_StackLibrary for project ble5_simple_peripheral_cc2640r2lp_app ****
+
+"C:\\ti\\ccsv7\\utils\\bin\\gmake" -k -j 4 all -O 
+gmake[1]: 'ble5_simple_peripheral_cc2640r2lp_app.out' is up to date.
+
+**** Build Finished ****
