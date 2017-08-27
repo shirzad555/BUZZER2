@@ -56,6 +56,8 @@
 
 #include "simple_gatt_profile.h"
 
+#include "alarm.h"
+
 /*********************************************************************
  * MACROS
  */
@@ -73,6 +75,7 @@
 /*********************************************************************
  * GLOBAL VARIABLES
  */
+/*
 // Simple GATT Profile Service UUID: 0xFFF0
 CONST uint8 simpleProfileServUUID[ATT_BT_UUID_SIZE] =
 {
@@ -108,6 +111,28 @@ CONST uint8 simpleProfilechar5UUID[ATT_BT_UUID_SIZE] =
 {
   LO_UINT16(SIMPLEPROFILE_CHAR5_UUID), HI_UINT16(SIMPLEPROFILE_CHAR5_UUID)
 };
+*/// MoveDetector Service UUID: 0xBB00
+CONST uint8 movedetectorServUUID[ATT_UUID_SIZE] =
+{
+    TI_BASE_UUID_128(MOVEDETECTOR_SERV_UUID),
+};
+
+// Characteristic 1 UUID: 0xBB01
+CONST uint8 movedetectorchar1UUID[ATT_UUID_SIZE] =
+{
+    TI_BASE_UUID_128(MOVEDETECTOR_CHAR1_UUID),
+};
+// Characteristic 2 UUID: 0xBB02
+CONST uint8 movedetectorchar2UUID[ATT_UUID_SIZE] =
+{
+    TI_BASE_UUID_128(MOVEDETECTOR_CHAR2_UUID),
+};
+
+// Characteristic 3 UUID: 0xBB03
+CONST uint8 movedetectorchar3UUID[ATT_UUID_SIZE] =
+{
+    TI_BASE_UUID_128(MOVEDETECTOR_CHAR3_UUID),
+};
 
 /*********************************************************************
  * EXTERNAL VARIABLES
@@ -121,18 +146,21 @@ CONST uint8 simpleProfilechar5UUID[ATT_BT_UUID_SIZE] =
  * LOCAL VARIABLES
  */
 
-static simpleProfileCBs_t *simpleProfile_AppCBs = NULL;
+static movedetectorCBs_t *movedetector_AppCBs = NULL;
 
 /*********************************************************************
  * Profile Attributes - variables
  */
 
+/*
 // Simple Profile Service attribute
-static CONST gattAttrType_t simpleProfileService = { ATT_BT_UUID_SIZE, simpleProfileServUUID };
+//static CONST gattAttrType_t simpleProfileService = { ATT_BT_UUID_SIZE, simpleProfileServUUID };
+static CONST gattAttrType_t movedetectorService = { ATT_UUID_SIZE, movedetectorServUUID };
 
 
 // Simple Profile Characteristic 1 Properties
-static uint8 simpleProfileChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
+//static uint8 simpleProfileChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
+static uint8 movedetectorChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 1 Value
 static uint8 simpleProfileChar1 = 0;
@@ -186,19 +214,145 @@ static uint8 simpleProfileChar5[SIMPLEPROFILE_CHAR5_LEN] = { 0, 0, 0, 0, 0 };
 // Simple Profile Characteristic 5 User Description
 static uint8 simpleProfileChar5UserDesp[17] = "Characteristic 5";
 
+*/
+
+// SModeDetector Service attribute
+static CONST gattAttrType_t movedetectorService = { ATT_UUID_SIZE, movedetectorServUUID};
+
+// MoveDetector Service Characteristic 1 Properties
+static uint8 movedetectorChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
+
+// Characteristic 1 Value
+static uint8 movedetectorChar1 = 0;
+
+// MoveDetector Service Characteristic 1 User Description
+static uint8 movedetectorChar1UserDesp[10] = "LED CTRL\0";
+
+// MoveDetector Service Characteristic 2 Properties
+static uint8 movedetectorChar2Props = GATT_PROP_NOTIFY;
+
+// Characteristic 2 Value
+static uint8 movedetectorChar2 = 22;
+
+// MoveDetector Service Characteristic 2 Configuration.
+static gattCharCfg_t *movedetectorChar2Config;
+
+// MoveDetector Service Characteristic 2 User Description
+static uint8 movedetectorChar2UserDesp[] = "MoveDetector Value Notification\0";
+
+// MoveDetector Service Characteristic 3 Properties
+static uint8 movedetectorChar3Props = GATT_PROP_READ | GATT_PROP_WRITE;
+
+// Characteristic 1 Value
+static uint8 movedetectorChar3 = 0;
+
+// MoveDetector Service Characteristic 1 User Description
+static uint8 movedetectorChar3UserDesp[14] = "Sensor Value\0";
+
 /*********************************************************************
  * Profile Attributes - Table
  */
+static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
+{
+  // movedetector Service  (the attribute for the primary Service declaration)// UUID size is 16bit since this is a standard uuid
+  {
+    { ATT_BT_UUID_SIZE, primaryServiceUUID },   /* type */
+    GATT_PERMIT_READ,                           /* permissions */
+    0,                                          /* handle */
+    (uint8 *)&movedetectorService                   /* pValue */
+  },
 
+  // Characteristic 1 Declaration
+  {
+    { ATT_BT_UUID_SIZE, characterUUID },
+    GATT_PERMIT_READ,
+    0,
+    &movedetectorChar1Props
+  },
+
+  // Characteristic Value 1, this is a custom uuid
+  {
+    { ATT_UUID_SIZE, movedetectorchar1UUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+    0,
+    &movedetectorChar1
+  },
+
+  // Characteristic 1 User Description
+  {
+    { ATT_BT_UUID_SIZE, charUserDescUUID },
+    GATT_PERMIT_READ,
+    0,
+    movedetectorChar1UserDesp
+  },
+
+
+  // Characteristic 2 Declaration
+  {
+    { ATT_BT_UUID_SIZE, characterUUID },
+    GATT_PERMIT_READ,
+    0,
+    &movedetectorChar2Props
+  },
+
+  // Characteristic Value 2
+  {
+    { ATT_UUID_SIZE, movedetectorchar2UUID },
+    0,
+    0,
+    &movedetectorChar2
+  },
+
+  // Characteristic 2 configuration
+  {
+    { ATT_BT_UUID_SIZE, clientCharCfgUUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+    0,
+    (uint8 *)&movedetectorChar2Config
+  },
+
+  // Characteristic 2 User Description
+  {
+    { ATT_BT_UUID_SIZE, charUserDescUUID },
+    GATT_PERMIT_READ,
+    0,
+    movedetectorChar2UserDesp
+  },
+
+  // Characteristic 3 Declaration
+  {
+    { ATT_BT_UUID_SIZE, characterUUID },
+    GATT_PERMIT_READ,
+    0,
+    &movedetectorChar3Props
+  },
+
+  // Characteristic Value 3, this is a custom uuid
+  {
+    { ATT_UUID_SIZE, movedetectorchar3UUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+    0,
+    &movedetectorChar3
+  },
+
+  // Characteristic 3 User Description
+  {
+    { ATT_BT_UUID_SIZE, charUserDescUUID },
+    GATT_PERMIT_READ,
+    0,
+    movedetectorChar3UserDesp
+  },
+};
+/*
 static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 {
   // Simple Profile Service
   {
-    { ATT_BT_UUID_SIZE, primaryServiceUUID }, /* type */
-    GATT_PERMIT_READ,                         /* permissions */
-    0,                                        /* handle */
-    (uint8 *)&simpleProfileService            /* pValue */
-  },
+ //   { ATT_BT_UUID_SIZE, primaryServiceUUID }, /* type */
+//    GATT_PERMIT_READ,                         /* permissions */
+//    0,                                        /* handle */
+//    (uint8 *)&simpleProfileService            /* pValue */
+/*  },
 
     // Characteristic 1 Declaration
     {
@@ -328,16 +482,52 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
         simpleProfileChar5UserDesp
       },
 };
+*/
+
+bStatus_t utilExtractUuid16(gattAttribute_t *pAttr, uint16_t *pUuid)
+{
+  bStatus_t status = SUCCESS;
+
+  if (pAttr->type.len == ATT_BT_UUID_SIZE )
+  {
+    // 16-bit UUID direct
+    *pUuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
+#ifdef GATT_TI_UUID_128_BIT
+  }
+  else if (pAttr->type.len == ATT_UUID_SIZE)
+  {
+    // 16-bit UUID extracted bytes 12 and 13
+    *pUuid = BUILD_UINT16( pAttr->type.uuid[12], pAttr->type.uuid[13]);
+#endif
+  } else {
+    *pUuid = 0xFFFF;
+    status = FAILURE;
+  }
+
+  return status;
+}
 
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
+/*
 static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
                                           gattAttribute_t *pAttr,
                                           uint8_t *pValue, uint16_t *pLen,
                                           uint16_t offset, uint16_t maxLen,
                                           uint8_t method);
 static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
+                                           gattAttribute_t *pAttr,
+                                           uint8_t *pValue, uint16_t len,
+                                           uint16_t offset, uint8_t method);
+
+*/
+static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
+                                          gattAttribute_t *pAttr,
+                                          uint8_t *pValue, uint16_t *pLen,
+                                          uint16_t offset, uint16_t maxLen,
+                                          uint8_t method);
+static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
                                            gattAttribute_t *pAttr,
                                            uint8_t *pValue, uint16_t len,
                                            uint16_t offset, uint8_t method);
@@ -354,10 +544,17 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
 // pfnAuthorizeAttrCB to check a client's authorization prior to calling
 // pfnReadAttrCB or pfnWriteAttrCB, so no checks for authorization need to be
 // made within these functions.
-CONST gattServiceCBs_t simpleProfileCBs =
+/*CONST gattServiceCBs_t simpleProfileCBs =
 {
   simpleProfile_ReadAttrCB,  // Read callback function pointer
   simpleProfile_WriteAttrCB, // Write callback function pointer
+  NULL                       // Authorization callback function pointer
+};
+*/
+CONST gattServiceCBs_t movedetectorCBs =
+{
+  movedetector_ReadAttrCB,  // Read callback function pointer
+  movedetector_WriteAttrCB, // Write callback function pointer
   NULL                       // Authorization callback function pointer
 };
 
@@ -376,7 +573,7 @@ CONST gattServiceCBs_t simpleProfileCBs =
  *
  * @return  Success or Failure
  */
-bStatus_t SimpleProfile_AddService( uint32 services )
+/*bStatus_t SimpleProfile_AddService( uint32 services )
 {
   uint8 status;
 
@@ -406,7 +603,30 @@ bStatus_t SimpleProfile_AddService( uint32 services )
 
   return ( status );
 }
+*/
+bStatus_t Movedetector_AddService( uint32 services )
+{
+  uint8 status;
 
+  // Allocate Client Characteristic Configuration table
+  movedetectorChar2Config = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) *
+                                                            linkDBNumConns );
+  if ( movedetectorChar2Config == NULL )
+  {
+    return ( bleMemAllocError );
+  }
+
+  // Initialize Client Characteristic Configuration attributes
+  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, movedetectorChar2Config );
+
+  // Register GATT attribute list and CBs with GATT Server App
+  status = GATTServApp_RegisterService( movedetectorAttrTbl,
+                                        GATT_NUM_ATTRS( movedetectorAttrTbl ),
+                                        GATT_MAX_ENCRYPT_KEY_SIZE,
+                                        &movedetectorCBs );
+
+  return ( status );
+}
 /*********************************************************************
  * @fn      SimpleProfile_RegisterAppCBs
  *
@@ -417,11 +637,24 @@ bStatus_t SimpleProfile_AddService( uint32 services )
  *
  * @return  SUCCESS or bleAlreadyInRequestedMode
  */
-bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks )
+/*bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks )
 {
   if ( appCallbacks )
   {
     simpleProfile_AppCBs = appCallbacks;
+
+    return ( SUCCESS );
+  }
+  else
+  {
+    return ( bleAlreadyInRequestedMode );
+  }
+}*/
+bStatus_t Movedetector_RegisterAppCBs( movedetectorCBs_t *appCallbacks ) // Movedetector_RegisterAppCBs
+{
+  if ( appCallbacks )
+  {
+    movedetector_AppCBs = appCallbacks;
 
     return ( SUCCESS );
   }
@@ -445,81 +678,87 @@ bStatus_t SimpleProfile_RegisterAppCBs( simpleProfileCBs_t *appCallbacks )
  *
  * @return  bStatus_t
  */
-bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
+/*bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
 {
-  bStatus_t ret = SUCCESS;
-  switch ( param )
-  {
-    case SIMPLEPROFILE_CHAR1:
-      if ( len == sizeof ( uint8 ) )
-      {
-        simpleProfileChar1 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+    bStatus_t ret = SUCCESS;
+    switch ( param )
+    {
+      case MOVEDETECTOR_CHAR1:
+        if ( len == sizeof ( uint8 ) )
+        {
+          movedetectorChar1 = *((uint8*)value);
+        }
+        else
+        {
+          ret = bleInvalidRange;
+        }
+        break;
 
-    case SIMPLEPROFILE_CHAR2:
-      if ( len == sizeof ( uint8 ) )
-      {
-        simpleProfileChar2 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+      case MOVEDETECTOR_CHAR2:
+        if ( len == sizeof ( uint8 ) )
+        {
+          movedetectorChar2 = *((uint8*)value);
 
-    case SIMPLEPROFILE_CHAR3:
-      if ( len == sizeof ( uint8 ) )
-      {
-        simpleProfileChar3 = *((uint8*)value);
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
+          // See if Notification has been enabled
+          GATTServApp_ProcessCharCfg( movedetectorChar2Config, &movedetectorChar2, FALSE,
+                                      movedetectorAttrTbl, GATT_NUM_ATTRS( movedetectorAttrTbl ),
+                                      INVALID_TASK_ID, movedetector_ReadAttrCB );
+        }
+        else
+        {
+          ret = bleInvalidRange;
+        }
+        break;
 
-    case SIMPLEPROFILE_CHAR4:
-      if ( len == sizeof ( uint8 ) )
-      {
-        simpleProfileChar4 = *((uint8*)value);
+      default:
+        ret = INVALIDPARAMETER;
+        break;
+    }
 
-        // See if Notification has been enabled
-        GATTServApp_ProcessCharCfg( simpleProfileChar4Config, &simpleProfileChar4, FALSE,
-                                    simpleProfileAttrTbl, GATT_NUM_ATTRS( simpleProfileAttrTbl ),
-                                    INVALID_TASK_ID, simpleProfile_ReadAttrCB );
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
-
-    case SIMPLEPROFILE_CHAR5:
-      if ( len == SIMPLEPROFILE_CHAR5_LEN )
-      {
-        VOID memcpy( simpleProfileChar5, value, SIMPLEPROFILE_CHAR5_LEN );
-      }
-      else
-      {
-        ret = bleInvalidRange;
-      }
-      break;
-
-    default:
-      ret = INVALIDPARAMETER;
-      break;
-  }
-
-  return ( ret );
+    return ( ret );
 }
+*/
+bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
+{
+ bStatus_t ret = SUCCESS;
+ switch ( param )
+ {
+   case MOVEDETECTOR_CHAR1:
+     if ( len == sizeof ( uint8 ) )
+     {
+       movedetectorChar1 = *((uint8*)value);
+     }
+     else
+     {
+       ret = bleInvalidRange;
+     }
+     break;
 
+   case MOVEDETECTOR_CHAR2:
+     if ( len == sizeof ( uint8 ) )
+     {
+       movedetectorChar2 = *((uint8*)value);
+
+       // See if Notification has been enabled
+       GATTServApp_ProcessCharCfg( movedetectorChar2Config, &movedetectorChar2, FALSE,
+                                   movedetectorAttrTbl, GATT_NUM_ATTRS( movedetectorAttrTbl ),
+                                   INVALID_TASK_ID, movedetector_ReadAttrCB );
+     }
+     else
+     {
+       ret = bleInvalidRange;
+     }
+     break;
+
+   default:
+     ret = INVALIDPARAMETER;
+     break;
+ }
+
+ return ( ret );
+}
 /*********************************************************************
- * @fn      SimpleProfile_GetParameter
+ * @fn      Movedetector_GetParameter
  *
  * @brief   Get a Simple Profile parameter.
  *
@@ -531,29 +770,38 @@ bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
  *
  * @return  bStatus_t
  */
-bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
+/*bStatus_t Movedetector_GetParameter( uint8 param, void *value )
+{
+    bStatus_t ret = SUCCESS;
+    switch ( param )
+    {
+      case MOVEDETECTOR_CHAR1:
+        *((uint8*)value) = movedetectorChar1;
+        break;
+
+      case MOVEDETECTOR_CHAR2:
+        *((uint8*)value) = movedetectorChar2;
+        break;
+
+      default:
+        ret = INVALIDPARAMETER;
+        break;
+    }
+
+    return ( ret );
+}
+*/
+bStatus_t  Movedetector_GetParameter( uint8 param, void *value )
 {
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
-    case SIMPLEPROFILE_CHAR1:
-      *((uint8*)value) = simpleProfileChar1;
+    case MOVEDETECTOR_CHAR1:
+      *((uint8*)value) = movedetectorChar1;
       break;
 
-    case SIMPLEPROFILE_CHAR2:
-      *((uint8*)value) = simpleProfileChar2;
-      break;
-
-    case SIMPLEPROFILE_CHAR3:
-      *((uint8*)value) = simpleProfileChar3;
-      break;
-
-    case SIMPLEPROFILE_CHAR4:
-      *((uint8*)value) = simpleProfileChar4;
-      break;
-
-    case SIMPLEPROFILE_CHAR5:
-      VOID memcpy( value, simpleProfileChar5, SIMPLEPROFILE_CHAR5_LEN );
+    case MOVEDETECTOR_CHAR2:
+      *((uint8*)value) = movedetectorChar2;
       break;
 
     default:
@@ -563,7 +811,6 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
 
   return ( ret );
 }
-
 /*********************************************************************
  * @fn          simpleProfile_ReadAttrCB
  *
@@ -579,7 +826,7 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
  *
  * @return      SUCCESS, blePending or Failure
  */
-static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
+/*static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
                                           gattAttribute_t *pAttr,
                                           uint8_t *pValue, uint16_t *pLen,
                                           uint16_t offset, uint16_t maxLen,
@@ -635,7 +882,70 @@ static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
 
   return ( status );
 }
+*/
+static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
+                                          gattAttribute_t *pAttr,
+                                          uint8_t *pValue, uint16_t *pLen,
+                                          uint16_t offset, uint16_t maxLen,
+                                          uint8_t method)
+{
+  uint16 uuid;
+  bStatus_t status = SUCCESS;
 
+  uint8 valueToCopy;
+
+  // If attribute permissions require authorization to read, return error
+  if ( gattPermitAuthorRead( pAttr->permissions ) )
+  {
+    // Insufficient authorization
+    return ( ATT_ERR_INSUFFICIENT_AUTHOR );
+  }
+
+  // Make sure it's not a blob operation (no attributes in the profile are long)
+  if ( offset > 0 )
+  {
+    return ( ATT_ERR_ATTR_NOT_LONG );
+  }
+
+  if (utilExtractUuid16(pAttr,&uuid) == FAILURE) {
+    // Invalid handle
+    *pLen = 0;
+    return ATT_ERR_INVALID_HANDLE;
+  }
+
+  switch ( uuid )
+  {
+    // No need for "GATT_SERVICE_UUID" or "GATT_CLIENT_CHAR_CFG_UUID" cases;
+    // gattserverapp handles those reads
+
+    // characteristics 1 has read permissions
+    // characteristic 2 does not have read permissions, but because it
+    //   can be sent as a notification, it is included here
+  case MOVEDETECTOR_CHAR1_UUID:
+      if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
+      {
+          *pLen = 1;
+          pValue[0] = valueToCopy;
+      }
+    break;
+  case MOVEDETECTOR_CHAR2_UUID:
+    *pLen = 1;
+    pValue[0] = *pAttr->pValue;
+    break;
+  case MOVEDETECTOR_CHAR3_UUID:
+     valueToCopy = Alarm_GetSetting();
+    *pLen = 1;
+    pValue[0] = valueToCopy;
+    break;
+
+  default:
+    // Should never get here! (characteristics 3 and 4 do not have read permissions)
+    *pLen = 0;
+    status = ATT_ERR_ATTR_NOT_FOUND;
+    break;
+  }
+  return ( status );
+}
 /*********************************************************************
  * @fn      simpleProfile_WriteAttrCB
  *
@@ -650,7 +960,7 @@ static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
  *
  * @return  SUCCESS, blePending or Failure
  */
-static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
+/*static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
                                            gattAttribute_t *pAttr,
                                            uint8_t *pValue, uint16_t len,
                                            uint16_t offset, uint8_t method)
@@ -724,6 +1034,116 @@ static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
 
   return ( status );
 }
+*/
+static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
+                                           gattAttribute_t *pAttr,
+                                           uint8_t *pValue, uint16_t len,
+                                           uint16_t offset, uint8_t method)
+{
+  uint16 uuid;
+  bStatus_t status = SUCCESS;
+  uint8 notifyApp = 0xFF;
 
+  // If attribute permissions require authorization to write, return error
+  if ( gattPermitAuthorWrite( pAttr->permissions ) )
+  {
+    // Insufficient authorization
+    return ( ATT_ERR_INSUFFICIENT_AUTHOR );
+  }
+
+
+  if (utilExtractUuid16(pAttr,&uuid) == FAILURE) {
+    // Invalid handle
+    return ATT_ERR_INVALID_HANDLE;
+  }
+
+  // 16-bit UUID
+  // uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
+  switch ( uuid )
+  {
+  case MOVEDETECTOR_CHAR1_UUID:
+    //Validate the value
+    // Make sure it's not a blob oper
+    if ( offset == 0 )
+    {
+      if ( len != 1 )
+      {
+        status = ATT_ERR_INVALID_VALUE_SIZE;
+      }
+    }
+    else
+    {
+      status = ATT_ERR_ATTR_NOT_LONG;
+    }
+    //Write the value
+    if ( status == SUCCESS )
+    {
+        uint8 major = pValue[0];
+/*      uint8 major[] = {
+        pValue[0],pValue[1],pValue[2],pValue[3],pValue[4],pValue[5],pValue[6],pValue[7],
+        pValue[8],pValue[9],pValue[10],pValue[11],pValue[12],pValue[13],pValue[14],pValue[15]
+      };
+      VOID osal_snv_write(MAJOR_ID, MAJOR_LEN, &major);
+*/
+      notifyApp = MOVEDETECTOR_CHAR1;
+      Movedetector_SetParameter( MOVEDETECTOR_CHAR1, sizeof(uint8_t), &major );
+      /*VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR2_LEN );
+      if( pAttr->pValue == simpleProfileChar2 )
+      {
+        notifyApp = SIMPLEPROFILE_CHAR2;
+      }*/
+    }
+
+    break;
+  case MOVEDETECTOR_CHAR3_UUID:
+    //Validate the value
+    // Make sure it's not a blob oper
+    if ( offset == 0 )
+    {
+      if ( len != 1 )
+      {
+        status = ATT_ERR_INVALID_VALUE_SIZE;
+      }
+    }
+    else
+    {
+      status = ATT_ERR_ATTR_NOT_LONG;
+    }
+    //Write the value
+    if ( status == SUCCESS )
+    {
+        uint8 major = pValue[0];
+/*      uint8 major[] = {
+        pValue[0],pValue[1],pValue[2],pValue[3],pValue[4],pValue[5],pValue[6],pValue[7],
+        pValue[8],pValue[9],pValue[10],pValue[11],pValue[12],pValue[13],pValue[14],pValue[15]
+      };
+      VOID osal_snv_write(MAJOR_ID, MAJOR_LEN, &major);
+*/
+      notifyApp = MOVEDETECTOR_CHAR3;
+      Alarm_SetSetting(major);
+    }
+
+    break;
+
+  case GATT_CLIENT_CHAR_CFG_UUID:
+    status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
+                                            offset, GATT_CLIENT_CFG_NOTIFY );
+    break;
+
+  default:
+    // Should never get here! (characteristics 2 and 4 do not have write permissions)
+    status = ATT_ERR_ATTR_NOT_FOUND;
+    break;
+  }
+
+
+  // If a charactersitic value changed then callback function to notify application of change
+  if ((notifyApp != 0xFF ) &&  movedetector_AppCBs && movedetector_AppCBs->pfnMovedetectorChange ) //
+  {
+      movedetector_AppCBs->pfnMovedetectorChange( notifyApp ); //
+  }
+
+  return ( status );
+}
 /*********************************************************************
 *********************************************************************/

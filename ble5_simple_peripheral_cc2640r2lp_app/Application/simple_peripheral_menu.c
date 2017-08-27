@@ -26,9 +26,9 @@ MENU_OBJ_END
 /* Menu: Main
      3 actions, no upper */
 MENU_OBJ(sbpMenuMain, NULL, 3, NULL)
-  MENU_ITEM_ACTION("1 Mbps",              SimpleBLEPeripheral_doSetPhy)
-  MENU_ITEM_ACTION("2 Mbps",              SimpleBLEPeripheral_doSetPhy)
-  MENU_ITEM_ACTION("1 & 2 Mbps",          SimpleBLEPeripheral_doSetPhy)
+  MENU_ITEM_ACTION("1 Mbps",              Movedetector_doSetPhy)
+  MENU_ITEM_ACTION("2 Mbps",              Movedetector_doSetPhy)
+  MENU_ITEM_ACTION("1 & 2 Mbps",          Movedetector_doSetPhy)
 MENU_OBJ_END
   #endif // PHY_LR_CFG
 #endif  // !Display_DISABLE_ALL

@@ -214,7 +214,7 @@ int main()
   /* Kick off profile - Priority 3 */
   GAPRole_createTask();
 
-  SimpleBLEPeripheral_createTask();
+  Movedetector_createTask();
 
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();

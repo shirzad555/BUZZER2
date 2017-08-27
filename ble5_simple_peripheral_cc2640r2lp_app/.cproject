@@ -43,6 +43,7 @@
 									<listOptionValue builtIn="false" value="&quot;${INHERITED_INCLUDE_PATH}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${PROJECT_ROOT}&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${PROJECT_LOC}/Application&quot;"/>
+									<listOptionValue builtIn="false" value="&quot;${PROJECT_LOC}/Hardware&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${PROJECT_LOC}/Startup&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${PROJECT_LOC}/PROFILES&quot;"/>
 									<listOptionValue builtIn="false" value="&quot;${PROJECT_LOC}/Include&quot;"/>

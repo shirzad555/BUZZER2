@@ -79,17 +79,17 @@ extern "C"
 /*
  * Task creation function for the Simple Peripheral.
  */
-extern void SimpleBLEPeripheral_createTask(void);
+extern void Movedetector_createTask(void);
 
 #if !defined(Display_DISABLE_ALL)
 /*
  * Functions for menu action
  */
 /* Actions for Menu: Start Device */
-bool SimpleBLEPeripheral_doStartDevice(uint8 index);
+bool Movedetector_doStartDevice(uint8 index);
 
 /* Actions for Menu: Set PHY - Select */
-bool SimpleBLEPeripheral_doSetPhy(uint8 index);
+bool Movedetector_doSetPhy(uint8 index);
 #endif  // !Display_DISABLE_ALL
 
 /*********************************************************************

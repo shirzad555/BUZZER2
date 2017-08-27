@@ -81,6 +81,7 @@
 
 
 #include "board.h"
+#include "./sablexr2_module/sablexr2_module_board.h"
 
 #if !defined(Display_DISABLE_ALL)
 #include "board_key.h"
@@ -91,8 +92,10 @@
 
 #include "simple_peripheral.h"
 
-
-
+#include "LIS3DH_Driver.h"
+#include "led.h"
+#include "PINCC26XX.h"
+#include "alarm.h"
 /*********************************************************************
  * CONSTANTS
  */
@@ -139,7 +142,9 @@
 #define DEFAULT_CONN_PAUSE_PERIPHERAL         6
 
 // How often to perform periodic event (in msec)
-#define SBP_PERIODIC_EVT_PERIOD               5000
+#define MDP_PERIODIC_EVT_PERIOD               500  // 5000 Original
+#define MDP_LED_BLINK_EVT_PERIOD              250
+#define MDP_SENSOR_MOVE_EVT_PERIOD            40
 
 // Application specific event ID for HCI Connection Event End Events
 #define SBP_HCI_CONN_EVT_END_EVT              0x0001
@@ -169,15 +174,21 @@
 #define SBP_TASK_STACK_SIZE                   644
 #endif
 
-// Application events
-#define SBP_STATE_CHANGE_EVT                  0x0001
-#define SBP_CHAR_CHANGE_EVT                   0x0002
-#define SBP_KEY_CHANGE_EVT                    0x0004
+// Internal Events for RTOS application
+#define MDP_STATE_CHANGE_EVT                  0x0001
+#define MDP_CHAR_CHANGE_EVT                   0x0002
+#define MDP_PERIODIC_EVT                      0x0004
+#define MDP_CONN_EVT_END_EVT                  0x0008
 
 // Internal Events for RTOS application
 #define SBP_ICALL_EVT                         ICALL_MSG_EVENT_ID // Event_Id_31
 #define SBP_QUEUE_EVT                         UTIL_QUEUE_EVENT_ID // Event_Id_30
 #define SBP_PERIODIC_EVT                      Event_Id_00
+
+#define MDP_KEY_CHANGE_EVT                    0x0010
+#define MDP_LED_BLINK_EVT                     0x0020
+#define MDP_SENSOR_MOVE_EVT                   0x0040
+
 
 #ifdef FEATURE_OAD
 // Additional Application Events for OAD
@@ -202,9 +213,13 @@
 #define SBP_ROW_ROLESTATE     (TBM_ROW_APP + 3)
 #define SBP_ROW_BDADDR        (TBM_ROW_APP + 4)
 
+#define SENSOR_MOVE_COUNT                       10
+#define ALARM_MOVEMENT_THRESHOLD                10
+
 /*********************************************************************
  * TYPEDEFS
  */
+uint8_t valueForTest = 0;
 
 // App event passed from profiles.
 typedef struct
@@ -232,6 +247,8 @@ static ICall_SyncHandle syncEvent;
 
 // Clock instances for internal periodic events.
 static Clock_Struct periodicClock;
+static Clock_Struct ledBlinkClock;
+static Clock_Struct sensorMovementClock;
 
 // Queue object used for app messages
 static Queue_Struct appMsg;
@@ -251,27 +268,24 @@ Char sbpTaskStack[SBP_TASK_STACK_SIZE];
 static uint8_t scanRspData[] =
 {
   // complete name
-  0x14,   // length of this data
+  0x17,   // length of this data
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
+  'C',
+  'C',
+  '2',
+  '6',
+  '5',
+  '0',
+  ' ',
   'S',
-  'i',
-  'm',
-  'p',
-  'l',
   'e',
-  'B',
-  'L',
-  'E',
-  'P',
-  'e',
+  'n',
+  's',
+  'o',
   'r',
-  'i',
-  'p',
-  'h',
-  'e',
-  'r',
+  'T',
   'a',
-  'l',
+  'g',
 
   // connection interval range
   0x05,   // length of this data
@@ -301,7 +315,7 @@ static uint8_t advertData[] =
   // service UUID, to notify central devices what services are included
   // in this peripheral
 #if !defined(FEATURE_OAD) || defined(FEATURE_OAD_ONCHIP)
-  0x03,   // length of this data
+  0x11,   // length of this data
 #else //OAD for external flash
   0x05,  // length of this data
 #endif //FEATURE_OAD
@@ -311,52 +325,63 @@ static uint8_t advertData[] =
   HI_UINT16(OAD_SERVICE_UUID),
 #endif //FEATURE_OAD
 #ifndef FEATURE_OAD_ONCHIP
-  LO_UINT16(SIMPLEPROFILE_SERV_UUID),
-  HI_UINT16(SIMPLEPROFILE_SERV_UUID)
+  //LO_UINT16(SIMPLEPROFILE_SERV_UUID),
+  //HI_UINT16(SIMPLEPROFILE_SERV_UUID)
+  GAP_ADTYPE_128BIT_MORE, // Shirzad Original: LO_UINT16(SIMPLEPROFILE_SERV_UUID),
+  TI_BASE_UUID_128(MOVEDETECTOR_SERV_UUID), //(SIMPLEPROFILE_SERV_UUID), // Shirzad Original: HI_UINT16(SIMPLEPROFILE_SERV_UUID),
 #endif //FEATURE_OAD_ONCHIP
 };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Simple Peripheral";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Project Angela"; // "Simple Peripheral";
 
 // Globals used for ATT Response retransmission
 static gattMsgEvent_t *pAttRsp = NULL;
 static uint8_t rspTxRetry = 0;
 
+uint8_t ledBlinkCount = 0;
+uint8_t sensorCheckCount = 0;
+
+static uint16_t static_xyzValue[3][SENSOR_MOVE_COUNT];
+//static uint16_t static_yValue[SENSOR_MOVE_COUNT];
+//static uint16_t static_zValue[SENSOR_MOVE_COUNT];
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
 
-static void SimpleBLEPeripheral_init( void );
-static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1);
+static void Movedetector_init( void );
+static void Movedetector_taskFxn(UArg a0, UArg a1);
 
-static uint8_t SimpleBLEPeripheral_processStackMsg(ICall_Hdr *pMsg);
-static uint8_t SimpleBLEPeripheral_processGATTMsg(gattMsgEvent_t *pMsg);
-static void SimpleBLEPeripheral_processAppMsg(sbpEvt_t *pMsg);
-static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState);
-static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID);
-static void SimpleBLEPeripheral_performPeriodicTask(void);
-static void SimpleBLEPeripheral_clockHandler(UArg arg);
+static uint8_t Movedetector_processStackMsg(ICall_Hdr *pMsg);
+static uint8_t Movedetector_processGATTMsg(gattMsgEvent_t *pMsg);
+static void Movedetector_processAppMsg(sbpEvt_t *pMsg);
+static void Movedetector_processStateChangeEvt(gaprole_States_t newState);
+static void Movedetector_processCharValueChangeEvt(uint8_t paramID);
+static void Movedetector_performPeriodicTask(void);
+//static void Movedetector_clockHandler(UArg arg);
+static void Movedetector_clockHandler(UArg arg);
 
-static void SimpleBLEPeripheral_sendAttRsp(void);
-static void SimpleBLEPeripheral_freeAttRsp(uint8_t status);
+static void Movedetector_sendAttRsp(void);
+static void Movedetector_freeAttRsp(uint8_t status);
 
-static void SimpleBLEPeripheral_stateChangeCB(gaprole_States_t newState);
+static void Movedetector_stateChangeCB(gaprole_States_t newState);
 #ifndef FEATURE_OAD_ONCHIP
-static void SimpleBLEPeripheral_charValueChangeCB(uint8_t paramID);
+static void Movedetector_charValueChangeCB(uint8_t paramID);
 #endif //!FEATURE_OAD_ONCHIP
-static void SimpleBLEPeripheral_enqueueMsg(uint8_t event, uint8_t state);
+static void Movedetector_enqueueMsg(uint8_t event, uint8_t state);
 
 #ifdef FEATURE_OAD
-void SimpleBLEPeripheral_processOadWriteCB(uint8_t event, uint16_t connHandle,
+void Movedetector_processOadWriteCB(uint8_t event, uint16_t connHandle,
                                            uint8_t *pData);
 #endif //FEATURE_OAD
 
 #if !defined(Display_DISABLE_ALL)
-void SimpleBLEPeripheral_keyChangeHandler(uint8 keys);
-static void SimpleBLEPeripheral_handleKeys(uint8_t keys);
+void Movedetector_keyChangeHandler(uint8 keys);
+static void Movedetector_handleKeys(uint8_t keys);
 #endif  // !Display_DISABLE_ALL
 
+static void ReadSensorValue(void);
+static void CheckForAlarm(void);
 /*********************************************************************
  * EXTERN FUNCTIONS
  */
@@ -367,15 +392,15 @@ extern void AssertHandler(uint8 assertCause, uint8 assertSubcause);
  */
 
 // Peripheral GAPRole Callbacks
-static gapRolesCBs_t SimpleBLEPeripheral_gapRoleCBs =
+static gapRolesCBs_t Movedetector_gapRoleCBs =
 {
-  SimpleBLEPeripheral_stateChangeCB     // GAPRole State Change Callbacks
+     Movedetector_stateChangeCB     // GAPRole State Change Callbacks
 };
 
 // GAP Bond Manager Callbacks
 // These are set to NULL since they are not needed. The application
 // is set up to only perform justworks pairing.
-static gapBondCBs_t simpleBLEPeripheral_BondMgrCBs =
+static gapBondCBs_t Movedetector_BondMgrCBs =
 {
   NULL, // Passcode callback
   NULL  // Pairing / Bonding state Callback
@@ -383,16 +408,16 @@ static gapBondCBs_t simpleBLEPeripheral_BondMgrCBs =
 
 // Simple GATT Profile Callbacks
 #ifndef FEATURE_OAD_ONCHIP
-static simpleProfileCBs_t SimpleBLEPeripheral_simpleProfileCBs =
+static movedetectorCBs_t MovedetectorCBs =
 {
-  SimpleBLEPeripheral_charValueChangeCB // Simple GATT Characteristic value change callback
+ Movedetector_charValueChangeCB // Simple GATT Characteristic value change callback
 };
 #endif //!FEATURE_OAD_ONCHIP
 
 #ifdef FEATURE_OAD
-static oadTargetCBs_t simpleBLEPeripheral_oadCBs =
+static oadTargetCBs_t movedetector_oadCBs =
 {
-  SimpleBLEPeripheral_processOadWriteCB // OAD Profile Characteristic value change callback.
+     Movedetector_processOadWriteCB // OAD Profile Characteristic value change callback.
 };
 #endif //FEATURE_OAD
 
@@ -401,7 +426,7 @@ static oadTargetCBs_t simpleBLEPeripheral_oadCBs =
  */
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_createTask
+ * @fn      Movedetector_createTask
  *
  * @brief   Task creation function for the Simple Peripheral.
  *
@@ -409,7 +434,7 @@ static oadTargetCBs_t simpleBLEPeripheral_oadCBs =
  *
  * @return  None.
  */
-void SimpleBLEPeripheral_createTask(void)
+void Movedetector_createTask(void)
 {
   Task_Params taskParams;
 
@@ -419,11 +444,11 @@ void SimpleBLEPeripheral_createTask(void)
   taskParams.stackSize = SBP_TASK_STACK_SIZE;
   taskParams.priority = SBP_TASK_PRIORITY;
 
-  Task_construct(&sbpTask, SimpleBLEPeripheral_taskFxn, &taskParams, NULL);
+  Task_construct(&sbpTask, Movedetector_taskFxn, &taskParams, NULL);
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_init
+ * @fn      Movedetector_init
  *
  * @brief   Called during initialization and contains application
  *          specific initialization (ie. hardware initialization/setup,
@@ -434,8 +459,14 @@ void SimpleBLEPeripheral_createTask(void)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_init(void)
+static void Movedetector_init(void)
 {
+    LIS3DH_Filter filter_Parms;
+    uint8_t temp;
+    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
+    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
+    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
+    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
   // ******************************************************************
   // N0 STACK API CALLS CAN OCCUR BEFORE THIS CALL TO ICall_registerApp
   // ******************************************************************
@@ -469,8 +500,36 @@ static void SimpleBLEPeripheral_init(void)
   appMsgQueue = Util_constructQueue(&appMsg);
 
   // Create one-shot clocks for internal periodic events.
-  Util_constructClock(&periodicClock, SimpleBLEPeripheral_clockHandler,
-                      SBP_PERIODIC_EVT_PERIOD, 0, false, SBP_PERIODIC_EVT);
+  Util_constructClock(&periodicClock, Movedetector_clockHandler,
+                      MDP_PERIODIC_EVT_PERIOD, 0, false, SBP_PERIODIC_EVT);
+
+  // Create one-shot clocks for led_blinking events.
+  Util_constructClock(&ledBlinkClock, Movedetector_clockHandler,
+                      MDP_LED_BLINK_EVT_PERIOD, 0, false, MDP_LED_BLINK_EVT);
+
+  // Create one-shot clocks for sensor events.
+  Util_constructClock(&sensorMovementClock, Movedetector_clockHandler,
+                      MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
+
+
+  // Initialize keys
+//  Board_initKeys(MovedetectorSensor_keyChangeHandler);
+
+  // Init LED
+//  Led_init();
+  //PINCC26XX_setOutputValue(SPI_CS, 1);
+  //PINCC26XX_setOutputEnable(SPI_MISO, 1);
+  //PINCC26XX_setOutputValue(SPI_MISO, 0);
+  LIS3DH_Initialize();
+  LIS3DH_SetDeviceMode(LIS3DH_MODE_LOW_POWER, LIS3DH_ODR_25_HZ, LIS3DH_FULL_SCALE_SELECTION_4G);
+  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
+  LIS3DH_SetFilter(filter_Parms);
+  LIS3DH_InterruptCtrl();
+  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
+  LIS3DH_Interrupt1Duration(2);// you can add duration here too
+  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
+  LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+
 
   dispHandle = Display_open(SBP_DISPLAY_TYPE, NULL);
 
@@ -575,7 +634,7 @@ static void SimpleBLEPeripheral_init(void)
   DevInfo_AddService();                        // Device Information Service
 
 #ifndef FEATURE_OAD_ONCHIP
-  SimpleProfile_AddService(GATT_ALL_SERVICES); // Simple GATT Profile
+  Movedetector_AddService(GATT_ALL_SERVICES); // Simple GATT Profile
 #endif //!FEATURE_OAD_ONCHIP
 
 #ifdef FEATURE_OAD
@@ -590,12 +649,12 @@ static void SimpleBLEPeripheral_init(void)
 
 
 #ifndef FEATURE_OAD_ONCHIP
-  // Setup the SimpleProfile Characteristic Values
+  // Setup the movedetector Characteristic Values
   // For more information, see the sections in the User's Guide:
   // http://software-dl.ti.com/lprf/ble5stack-docs-latest/html/ble-stack/gatt.html#
   // http://software-dl.ti.com/lprf/ble5stack-docs-latest/html/ble-stack/gatt.html#gattservapp-module
   {
-    uint8_t charValue1 = 1;
+/*    uint8_t charValue1 = 1;
     uint8_t charValue2 = 2;
     uint8_t charValue3 = 3;
     uint8_t charValue4 = 4;
@@ -610,15 +669,32 @@ static void SimpleBLEPeripheral_init(void)
     SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
                                &charValue4);
     SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN,
-                               charValue5);
+                               charValue5);*/
+      uint8_t charValue1 = 0;
+      uint8_t charValue2 = 23;
+      uint16_t charValue3 = 0;
+  //    uint8_t charValue4 = 4;
+  //    uint8_t charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
+
+      Movedetector_SetParameter(MOVEDETECTOR_CHAR1, sizeof(uint8_t),
+                                 &charValue1);
+      Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t),
+                                 &charValue2);
+      Movedetector_SetParameter(MOVEDETECTOR_CHAR3, sizeof(uint16_t),
+                                 &charValue3);
+  /*    Movedetector_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
+                                 &charValue4);
+      Movedetector_SetParameter(SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN,
+                                 charValue5);
+                                 */
   }
 
   // Register callback with SimpleGATTprofile
-  SimpleProfile_RegisterAppCBs(&SimpleBLEPeripheral_simpleProfileCBs);
+  Movedetector_RegisterAppCBs(&MovedetectorCBs);
 #endif //!FEATURE_OAD_ONCHIP
 
   // Start Bond Manager and register callback
-  VOID GAPBondMgr_Register(&simpleBLEPeripheral_BondMgrCBs);
+  VOID GAPBondMgr_Register(&Movedetector_BondMgrCBs);
 
   // Register with GAP for HCI/Host messages. This is needed to receive HCI
   // events. For more information, see the section in the User's Guide:
@@ -675,7 +751,7 @@ static void SimpleBLEPeripheral_init(void)
   tbm_initTwoBtnMenu(dispHandle, &sbpMenuMain, 3, NULL);
 
   // Init key debouncer
-  Board_initKeys(SimpleBLEPeripheral_keyChangeHandler);
+  Board_initKeys(Movedetector_keyChangeHandler);
 #endif  // !Display_DISABLE_ALL
 
 #if !defined (USE_LL_CONN_PARAM_UPDATE)
@@ -687,11 +763,11 @@ static void SimpleBLEPeripheral_init(void)
 #endif // !defined (USE_LL_CONN_PARAM_UPDATE)
 
   // Start the GAPRole
-  VOID GAPRole_StartDevice(&SimpleBLEPeripheral_gapRoleCBs);
+  VOID GAPRole_StartDevice(&Movedetector_gapRoleCBs);
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_taskFxn
+ * @fn      Movedetector_taskFxn
  *
  * @brief   Application task entry point for the Simple Peripheral.
  *
@@ -699,10 +775,10 @@ static void SimpleBLEPeripheral_init(void)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
+static void Movedetector_taskFxn(UArg a0, UArg a1)
 {
   // Initialize application
-  SimpleBLEPeripheral_init();
+  Movedetector_init();
 
   // Application main loop
   for (;;)
@@ -741,13 +817,13 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
             if (pEvt->event_flag & SBP_HCI_CONN_EVT_END_EVT)
             {
               // Try to retransmit pending ATT Response (if any)
-              SimpleBLEPeripheral_sendAttRsp();
+              Movedetector_sendAttRsp();
             }
           }
           else
           {
             // Process inter-task message
-            safeToDealloc = SimpleBLEPeripheral_processStackMsg((ICall_Hdr *)pMsg);
+            safeToDealloc = Movedetector_processStackMsg((ICall_Hdr *)pMsg);
           }
         }
 
@@ -766,7 +842,7 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
           if (pMsg)
           {
             // Process message.
-            SimpleBLEPeripheral_processAppMsg(pMsg);
+            Movedetector_processAppMsg(pMsg);
 
             // Free the space from the message.
             ICall_free(pMsg);
@@ -779,9 +855,33 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
         Util_startClock(&periodicClock);
 
         // Perform periodic application task
-        SimpleBLEPeripheral_performPeriodicTask();
+        Movedetector_performPeriodicTask();
       }
-
+      if (events & MDP_LED_BLINK_EVT && ledBlinkCount > 0)
+      {
+          events &= ~MDP_LED_BLINK_EVT;
+          ledBlinkCount--;
+          Util_startClock(&ledBlinkClock);
+     //     Log_print0(Diags_USER1, "Toggling led\r\n");
+          toggle_led();
+          valueForTest++;
+          Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t), &valueForTest);
+      }
+      if (events & MDP_SENSOR_MOVE_EVT)
+      {
+          events &= ~MDP_SENSOR_MOVE_EVT;
+          if(sensorCheckCount > 0)
+          {
+              sensorCheckCount--;
+              Util_startClock(&sensorMovementClock);
+              ReadSensorValue();
+          }
+          else
+          {
+              ////sensorCheckCount = SENSOR_MOVE_COUNT;
+              CheckForAlarm();
+          }
+      }
 #ifdef FEATURE_OAD
       if (events & SBP_QUEUE_PING_EVT)
       {
@@ -810,7 +910,7 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processStackMsg
+ * @fn      Movedetector_processStackMsg
  *
  * @brief   Process an incoming stack message.
  *
@@ -818,7 +918,7 @@ static void SimpleBLEPeripheral_taskFxn(UArg a0, UArg a1)
  *
  * @return  TRUE if safe to deallocate incoming message, FALSE otherwise.
  */
-static uint8_t SimpleBLEPeripheral_processStackMsg(ICall_Hdr *pMsg)
+static uint8_t Movedetector_processStackMsg(ICall_Hdr *pMsg)
 {
   uint8_t safeToDealloc = TRUE;
 
@@ -826,7 +926,7 @@ static uint8_t SimpleBLEPeripheral_processStackMsg(ICall_Hdr *pMsg)
   {
     case GATT_MSG_EVENT:
       // Process GATT message
-      safeToDealloc = SimpleBLEPeripheral_processGATTMsg((gattMsgEvent_t *)pMsg);
+      safeToDealloc = Movedetector_processGATTMsg((gattMsgEvent_t *)pMsg);
       break;
 
     case HCI_GAP_EVENT_EVENT:
@@ -942,13 +1042,13 @@ static uint8_t SimpleBLEPeripheral_processStackMsg(ICall_Hdr *pMsg)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processGATTMsg
+ * @fn      Movedetector_processGATTMsg
  *
  * @brief   Process GATT messages and events.
  *
  * @return  TRUE if safe to deallocate incoming message, FALSE otherwise.
  */
-static uint8_t SimpleBLEPeripheral_processGATTMsg(gattMsgEvent_t *pMsg)
+static uint8_t Movedetector_processGATTMsg(gattMsgEvent_t *pMsg)
 {
   // See if GATT server was unable to transmit an ATT response
   if (pMsg->hdr.status == blePending)
@@ -959,7 +1059,7 @@ static uint8_t SimpleBLEPeripheral_processGATTMsg(gattMsgEvent_t *pMsg)
                                    SBP_HCI_CONN_EVT_END_EVT) == SUCCESS)
     {
       // First free any pending response
-      SimpleBLEPeripheral_freeAttRsp(FAILURE);
+      Movedetector_freeAttRsp(FAILURE);
 
       // Hold on to the response message for retransmission
       pAttRsp = pMsg;
@@ -991,7 +1091,7 @@ static uint8_t SimpleBLEPeripheral_processGATTMsg(gattMsgEvent_t *pMsg)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_sendAttRsp
+ * @fn      Movedetector_sendAttRsp
  *
  * @brief   Send a pending ATT response message.
  *
@@ -999,7 +1099,7 @@ static uint8_t SimpleBLEPeripheral_processGATTMsg(gattMsgEvent_t *pMsg)
  *
  * @return  none
  */
-static void SimpleBLEPeripheral_sendAttRsp(void)
+static void Movedetector_sendAttRsp(void)
 {
   // See if there's a pending ATT Response to be transmitted
   if (pAttRsp != NULL)
@@ -1018,7 +1118,7 @@ static void SimpleBLEPeripheral_sendAttRsp(void)
       HCI_EXT_ConnEventNoticeCmd(pAttRsp->connHandle, selfEntity, 0);
 
       // We're done with the response message
-      SimpleBLEPeripheral_freeAttRsp(status);
+      Movedetector_freeAttRsp(status);
     }
     else
     {
@@ -1029,7 +1129,7 @@ static void SimpleBLEPeripheral_sendAttRsp(void)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_freeAttRsp
+ * @fn      Movedetector_freeAttRsp
  *
  * @brief   Free ATT response message.
  *
@@ -1037,7 +1137,7 @@ static void SimpleBLEPeripheral_sendAttRsp(void)
  *
  * @return  none
  */
-static void SimpleBLEPeripheral_freeAttRsp(uint8_t status)
+static void Movedetector_freeAttRsp(uint8_t status)
 {
   // See if there's a pending ATT response message
   if (pAttRsp != NULL)
@@ -1065,7 +1165,7 @@ static void SimpleBLEPeripheral_freeAttRsp(uint8_t status)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processAppMsg
+ * @fn      Movedetector_processAppMsg
  *
  * @brief   Process an incoming callback from a profile.
  *
@@ -1073,22 +1173,22 @@ static void SimpleBLEPeripheral_freeAttRsp(uint8_t status)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_processAppMsg(sbpEvt_t *pMsg)
+static void Movedetector_processAppMsg(sbpEvt_t *pMsg)
 {
   switch (pMsg->hdr.event)
   {
-    case SBP_STATE_CHANGE_EVT:
-      SimpleBLEPeripheral_processStateChangeEvt((gaprole_States_t)pMsg->
+    case MDP_STATE_CHANGE_EVT:
+      Movedetector_processStateChangeEvt((gaprole_States_t)pMsg->
                                                 hdr.state);
       break;
 
-    case SBP_CHAR_CHANGE_EVT:
-      SimpleBLEPeripheral_processCharValueChangeEvt(pMsg->hdr.state);
+    case MDP_CHAR_CHANGE_EVT:
+      Movedetector_processCharValueChangeEvt(pMsg->hdr.state);
       break;
 
 #if !defined(Display_DISABLE_ALL)
-    case SBP_KEY_CHANGE_EVT:
-      SimpleBLEPeripheral_handleKeys(pMsg->hdr.state);
+    case MDP_KEY_CHANGE_EVT:
+      Movedetector_handleKeys(pMsg->hdr.state);
       break;
 #endif  // !Display_DISABLE_ALL
 
@@ -1099,7 +1199,7 @@ static void SimpleBLEPeripheral_processAppMsg(sbpEvt_t *pMsg)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_stateChangeCB
+ * @fn      Movedetector_stateChangeCB
  *
  * @brief   Callback from GAP Role indicating a role state change.
  *
@@ -1107,13 +1207,13 @@ static void SimpleBLEPeripheral_processAppMsg(sbpEvt_t *pMsg)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_stateChangeCB(gaprole_States_t newState)
+static void Movedetector_stateChangeCB(gaprole_States_t newState)
 {
-  SimpleBLEPeripheral_enqueueMsg(SBP_STATE_CHANGE_EVT, newState);
+  Movedetector_enqueueMsg(MDP_STATE_CHANGE_EVT, newState);
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processStateChangeEvt
+ * @fn      Movedetector_processStateChangeEvt
  *
  * @brief   Process a pending GAP Role state change event.
  *
@@ -1121,7 +1221,7 @@ static void SimpleBLEPeripheral_stateChangeCB(gaprole_States_t newState)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
+static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 {
 #ifdef PLUS_BROADCASTER
   static bool firstConnFlag = false;
@@ -1184,7 +1284,7 @@ static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
         // Reset flag for next connection.
         firstConnFlag = false;
 
-        SimpleBLEPeripheral_freeAttRsp(bleNotConnected);
+        Movedetector_freeAttRsp(bleNotConnected);
       }
       break;
 #endif //PLUS_BROADCASTER
@@ -1249,7 +1349,7 @@ static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
 
     case GAPROLE_WAITING:
       Util_stopClock(&periodicClock);
-      SimpleBLEPeripheral_freeAttRsp(bleNotConnected);
+      Movedetector_freeAttRsp(bleNotConnected);
 
       Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Disconnected");
 
@@ -1263,7 +1363,7 @@ static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
-      SimpleBLEPeripheral_freeAttRsp(bleNotConnected);
+      Movedetector_freeAttRsp(bleNotConnected);
 
       Display_print0(dispHandle, SBP_ROW_RESULT, 0, "Timed Out");
 
@@ -1293,7 +1393,7 @@ static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
 
 #ifndef FEATURE_OAD_ONCHIP
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_charValueChangeCB
+ * @fn      Movedetector_charValueChangeCB
  *
  * @brief   Callback from Simple Profile indicating a characteristic
  *          value change.
@@ -1302,14 +1402,14 @@ static void SimpleBLEPeripheral_processStateChangeEvt(gaprole_States_t newState)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_charValueChangeCB(uint8_t paramID)
+static void Movedetector_charValueChangeCB(uint8_t paramID)
 {
-  SimpleBLEPeripheral_enqueueMsg(SBP_CHAR_CHANGE_EVT, paramID);
+  Movedetector_enqueueMsg(MDP_CHAR_CHANGE_EVT, paramID);
 }
 #endif //!FEATURE_OAD_ONCHIP
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processCharValueChangeEvt
+ * @fn      Movedetector_processCharValueChangeEvt
  *
  * @brief   Process a pending Simple Profile characteristic value change
  *          event.
@@ -1318,23 +1418,56 @@ static void SimpleBLEPeripheral_charValueChangeCB(uint8_t paramID)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
+static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 {
 #ifndef FEATURE_OAD_ONCHIP
   uint8_t newValue;
 
   switch(paramID)
   {
-    case SIMPLEPROFILE_CHAR1:
-      SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR1, &newValue);
+    case MOVEDETECTOR_CHAR1: //SIMPLEPROFILE_CHAR1:
+      Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &newValue);
+//      Log_print1(Diags_USER1, "CharValueChangeEvt 1 = %d\r\n", &newValue);
 
-      Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Char 1: %d", (uint16_t)newValue);
+      switch(newValue)
+      {
+      case LED_STATE_OFF:
+        PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+//        Log_print0(Diags_USER1, "LED is OFF\r\n");
+        break;
+
+      case LED_STATE_ON:
+        PINCC26XX_setOutputValue(Board_BLED, LED_ON);
+//        Log_print0(Diags_USER1, "LED is ON\r\n");
+        break;
+
+      case LED_STATE_FLASH_1:
+          ledBlinkCount = LED_BLINK_COUNT_1;
+          PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+          Util_startClock(&ledBlinkClock);
+//          Log_print0(Diags_USER1, "LED is flashing in mode 1\r\n");
+        break;
+
+      default:
+        PINCC26XX_setOutputValue(Board_BLED, LED_OFF); // Shirzad
+//        Log_print0(Diags_USER1, "LED ERROR!!!\r\n");
+        break;
+
+      }
+//      LCD_WRITE_STRING_VALUE("Char 1:", (uint16_t)newValue, 10, LCD_PAGE4);
       break;
 
-    case SIMPLEPROFILE_CHAR3:
-      SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
+    case MOVEDETECTOR_CHAR2: //SIMPLEPROFILE_CHAR3:
+      //SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
+      Movedetector_GetParameter(MOVEDETECTOR_CHAR2, &newValue);
+//      Log_print1(Diags_USER1, "CharValueChangeEvt 2 = %d\r\n", &newValue);
+//      Log_print0(Diags_USER1, "CharValueChangeEvt 2\r\n");
+//      LCD_WRITE_STRING_VALUE("Char 3:", (uint16_t)newValue, 10, LCD_PAGE4);
+      break;
 
-      Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Char 3: %d", (uint16_t)newValue);
+    case MOVEDETECTOR_CHAR3:
+      Start_Alarm(); //TODO
+//      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
       break;
 
     default:
@@ -1345,7 +1478,7 @@ static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_performPeriodicTask
+ * @fn      Movedetector_performPeriodicTask
  *
  * @brief   Perform a periodic application task. This function gets called
  *          every five seconds (SBP_PERIODIC_EVT_PERIOD). In this example,
@@ -1357,20 +1490,19 @@ static void SimpleBLEPeripheral_processCharValueChangeEvt(uint8_t paramID)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_performPeriodicTask(void)
+static void Movedetector_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
   uint8_t valueToCopy;
 
   // Call to retrieve the value of the third characteristic in the profile
-  if (SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &valueToCopy) == SUCCESS)
+  if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
   {
     // Call to set that value of the fourth characteristic in the profile.
     // Note that if notifications of the fourth characteristic have been
     // enabled by a GATT client device, then a notification will be sent
     // every time this function is called.
-    SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
-                               &valueToCopy);
+    //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t), &valueToCopy);
   }
 #endif //!FEATURE_OAD_ONCHIP
 }
@@ -1378,7 +1510,7 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
 
 #ifdef FEATURE_OAD
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_processOadWriteCB
+ * @fn      Movedetector_processOadWriteCB
  *
  * @brief   Process a write request to the OAD profile.
  *
@@ -1390,7 +1522,7 @@ static void SimpleBLEPeripheral_performPeriodicTask(void)
  *
  * @return  None.
  */
-void SimpleBLEPeripheral_processOadWriteCB(uint8_t event, uint16_t connHandle,
+void Movedetector_processOadWriteCB(uint8_t event, uint16_t connHandle,
                                            uint8_t *pData)
 {
   oadTargetWrite_t *oadWriteEvt = ICall_malloc( sizeof(oadTargetWrite_t) + \
@@ -1417,7 +1549,7 @@ void SimpleBLEPeripheral_processOadWriteCB(uint8_t event, uint16_t connHandle,
 #endif //FEATURE_OAD
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_clockHandler
+ * @fn      Movedetector_clockHandler
  *
  * @brief   Handler function for clock timeouts.
  *
@@ -1425,7 +1557,7 @@ void SimpleBLEPeripheral_processOadWriteCB(uint8_t event, uint16_t connHandle,
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_clockHandler(UArg arg)
+static void Movedetector_clockHandler(UArg arg)
 {
   // Wake up the application.
   Event_post(syncEvent, arg);
@@ -1433,7 +1565,7 @@ static void SimpleBLEPeripheral_clockHandler(UArg arg)
 
 #if !defined(Display_DISABLE_ALL)
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_keyChangeHandler
+ * @fn      Movedetector_keyChangeHandler
  *
  * @brief   Key event handler function
  *
@@ -1441,14 +1573,14 @@ static void SimpleBLEPeripheral_clockHandler(UArg arg)
  *
  * @return  none
  */
-void SimpleBLEPeripheral_keyChangeHandler(uint8 keys)
+void Movedetector_keyChangeHandler(uint8 keys)
 {
-  SimpleBLEPeripheral_enqueueMsg(SBP_KEY_CHANGE_EVT, keys);
+  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keys);
 }
 #endif  // !Display_DISABLE_ALL
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_enqueueMsg
+ * @fn      Movedetector_enqueueMsg
  *
  * @brief   Creates a message and puts the message in RTOS queue.
  *
@@ -1457,7 +1589,7 @@ void SimpleBLEPeripheral_keyChangeHandler(uint8 keys)
  *
  * @return  None.
  */
-static void SimpleBLEPeripheral_enqueueMsg(uint8_t event, uint8_t state)
+static void Movedetector_enqueueMsg(uint8_t event, uint8_t state)
 {
   sbpEvt_t *pMsg;
 
@@ -1474,7 +1606,7 @@ static void SimpleBLEPeripheral_enqueueMsg(uint8_t event, uint8_t state)
 
 #if !defined(Display_DISABLE_ALL)
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_handleKeys
+ * @fn      Movedetector_handleKeys
  *
  * @brief   Handles all key events for this device.
  *
@@ -1484,9 +1616,9 @@ static void SimpleBLEPeripheral_enqueueMsg(uint8_t event, uint8_t state)
  *
  * @return  none
  */
-static void SimpleBLEPeripheral_handleKeys(uint8_t keys)
+static void Movedetector_handleKeys(uint8_t keys)
 {
-  if (keys & KEY_LEFT)
+/*  if (keys & KEY_LEFT)
   {
     // Check if the key is still pressed. WA for possible bouncing.
 #if defined(CC2650DK_7ID)
@@ -1510,10 +1642,37 @@ static void SimpleBLEPeripheral_handleKeys(uint8_t keys)
       tbm_buttonRight();
     }
   }
+  */
+//    (void)shift;  // Intentionally unreferenced parameter
+      LIS3DH_Filter filter_Parms;
+      uint8_t temp;
+  if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
+  {
+    PINCC26XX_setOutputValue(Board_GLED, LED_ON);
+//    Log_print0(Diags_USER1, "**\r\n");
+
+      filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
+      filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_BYPASS;
+      filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
+      filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
+
+      /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
+      LIS3DH_SetFilter(filter_Parms);
+  //  LIS3DH_InterruptCtrl();
+  //  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
+  //  LIS3DH_Interrupt1Duration(2);// you can add duration here too
+  //  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
+      LIS3DH_Interrupt1Config(0x00); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+
+      LIS3DH_ReadINT1Source(&temp); // Return the event that has triggered the interrupt and clear interrupt
+      sensorCheckCount = SENSOR_MOVE_COUNT;
+    Util_startClock(&sensorMovementClock);
+  }
+  return;
 }
 
 /*********************************************************************
- * @fn      SimpleBLEPeripheral_doSetPhy
+ * @fn      Movedetector_doSetPhy
  *
  * @brief   Set PHY preference.
  *
@@ -1525,7 +1684,7 @@ static void SimpleBLEPeripheral_handleKeys(uint8_t keys)
  *
  * @return  always true
  */
-bool SimpleBLEPeripheral_doSetPhy(uint8 index)
+bool Movedetector_doSetPhy(uint8 index)
 {
   uint8_t gapRoleState;
   uint16_t connectionHandle;
@@ -1558,3 +1717,85 @@ bool SimpleBLEPeripheral_doSetPhy(uint8 index)
 
 /*********************************************************************
 *********************************************************************/
+/*********************************************************************
+*********************************************************************/
+/////// Read XYZ and see if the detected movement from HPF is real (not noise) //////////////
+void ReadSensorValue(void)
+{
+    uint16_t xValue;
+    uint16_t yValue;
+    uint16_t zValue;
+
+    LIS3DH_ReadDeviceValue(&xValue, &yValue, &zValue); // clear the interrupt
+
+    // math below will change the xyz values from 2s complement to 0x00 (-2g) to 0xFF (2g)
+    xValue = xValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
+    if (xValue > 0x7F) xValue = xValue & 0x7F;
+    else xValue = xValue | 0x80;
+
+    yValue = yValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
+    if (yValue > 0x7F) yValue = yValue & 0x7F;
+    else yValue = yValue | 0x80;
+
+    zValue = zValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
+    if (zValue > 0x7F) zValue = zValue & 0x7F;
+    else zValue = zValue | 0x80;
+//  Log_print3(Diags_USER1, "XYZ_1 = %x, %d, %d", xValue, yValue, zValue);
+
+    static_xyzValue[0][sensorCheckCount] = xValue;
+    static_xyzValue[1][sensorCheckCount] = yValue;
+    static_xyzValue[2][sensorCheckCount] = zValue;
+//  static_xValue[sensorCheckCount] = xValue;
+//  static_yValue[sensorCheckCount] = yValue;
+//  static_zValue[sensorCheckCount] = zValue;
+
+    // create a periodic task to read XYZ, compare with the previous numbers and interrupt if more change then the threshold
+}
+
+static void CheckForAlarm(void)
+{
+    uint8_t i, j;
+    uint8_t bVal;
+    LIS3DH_Filter filter_Parms;
+    uint8_t lastxyzValue[3] = {static_xyzValue[0][0], static_xyzValue[1][0], static_xyzValue[2][0]};
+    uint8_t maxDiff = 0;
+
+    for (i=1; i<SENSOR_MOVE_COUNT; i++)
+    {
+        for (j=0; j<3; j++)
+        {
+            if(static_xyzValue[j][i] > lastxyzValue[j]) bVal = static_xyzValue[j][i] - lastxyzValue[j];
+            else bVal = lastxyzValue[j] - static_xyzValue[j][i];
+            if (bVal > maxDiff)
+            {
+                maxDiff = bVal;
+                lastxyzValue[j] = static_xyzValue[j][i];
+//                Log_print1(Diags_USER1, "maxDiff = %d", maxDiff);
+            }
+        }
+//        Log_print4(Diags_USER1, "s_XYZ_%d = %d, %d, %d", i, static_xyzValue[0][i], static_xyzValue[1][i], static_xyzValue[2][i]);
+    }
+
+    if (maxDiff > ALARM_MOVEMENT_THRESHOLD)
+    {
+        bVal = PINCC26XX_getOutputValue(Board_GLED);
+        PINCC26XX_setOutputValue(Board_GLED, !bVal);
+        //PINCC26XX_setOutputValue(BOARD_LED1, LED_ON);
+    }
+
+    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
+    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
+    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
+    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
+
+  //LIS3DH_Initialize();
+  //LIS3DH_SetDeviceMode(LIS3DH_MODE_LOW_POWER, LIS3DH_ODR_25_HZ, LIS3DH_FULL_SCALE_SELECTION_4G);
+  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
+  LIS3DH_SetFilter(filter_Parms);
+  LIS3DH_InterruptCtrl();
+  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
+  LIS3DH_Interrupt1Duration(2);// you can add duration here too
+  LIS3DH_ReadRefrence(&bVal); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
+  LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+}
+
