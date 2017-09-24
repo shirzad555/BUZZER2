@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<section name="org.eclipse.cdt.ui.OPEN_ACTION_SELECTION_DIALOG_SECTION">
+		<item value="940" key="DIALOG_WIDTH"/>
+		<item value="1|Segoe UI|9.0|0|WINDOWS|1|-12|0|0|0|400|0|0|0|1|0|0|5|0|Segoe UI" key="DIALOG_FONT_NAME"/>
+		<item value="438" key="DIALOG_HEIGHT"/>
+		<item value="348" key="DIALOG_X_ORIGIN"/>
+		<item value="236" key="DIALOG_Y_ORIGIN"/>
+	</section>
+	<section name="org.eclipse.cdt.ui.text.hover.CMacroExpansionExploration.internal">
+		<item value="180" key="size.height"/>
+		<item value="647" key="size.width"/>
+	</section>
+	<section name="org.eclipse.cdt.ui.text.hover.CMacroExpansionExploration">
+	</section>
+	<section name="PDOMSearchPage">
+		<item value="false" key="caseSensitive"/>
+		<item value="227191" key="searchFlags"/>
+		<list key="previousPatterns">
+			<item value="sem"/>
+			<item value="NPI_MAX_FRAG_SIZE"/>
+			<item value="_post"/>
+			<item value="xdc_runtime"/>
+			<item value="Task_disable"/>
+			<item value="Hwi_disable"/>
+			<item value="transport_tx_done_event"/>
+			<item value="TRANSPORT_TX_DONE_EVENT"/>
+			<item value="ICall_SyncHandle"/>
+			<item value="LED_ON"/>
+			<item value="LED_OFF"/>
+			<item value="Event_post"/>
+			<item value="periodicClock"/>
+			<item value="MDP_PERIODIC_EVT"/>
+			<item value="MovedetectorSensor_enqueueMsg"/>
+			<item value="UTIL_QUEUE_EVENT_ID"/>
+			<item value="UART_write"/>
+			<item value="ledBlinkCount"/>
+			<item value="Board_keyChangeHandler"/>
+			<item value="Movedetector_keyChangeHandler"/>
+			<item value="MDP_KEY_CHANGE_EVT"/>
+			<item value="MovedetectorSensor_handleKeys"/>
+			<item value="MovedetectorSensor_keyChangeHandler"/>
+			<item value="Movedetector_doSetPhy"/>
+			<item value="Movedetector_handleKeys"/>
+			<item value="print"/>
+			<item value="NPITLUART_initializeTransport"/>
+			<item value="NPITL_transmissionCallBack"/>
+			<item value="NPITL_checkNpiBusy"/>
+			<item value="TL_handleISRevent"/>
+			<item value="DATA_SECTION"/>
+			<item value="Board_GLED"/>
+			<item value="pragmaDATA_SECTIONuartCC26XXObjects"/>
+			<item value="Taskh"/>
+			<item value="Led_init"/>
+			<item value="sbp_spiCallback"/>
+			<item value="Board_BLED"/>
+			<item value="SABLEXR2_DEV_BOARD"/>
+			<item value="BoardGpioInitTable"/>
+			<item value="pfnMovedetectorChange"/>
+			<item value="USE_128_BIT_UUID"/>
+			<item value="movedetector_ReadAttrCB"/>
+			<item value="MovedetectorCBs"/>
+			<item value="Movedetector_charValueChangeCB"/>
+			<item value="Util_enqueueMsg"/>
+			<item value="Movedetector_enqueueMsg"/>
+			<item value="SBP_QUEUE_EVT"/>
+			<item value="Movedetector_processAppMsg"/>
+			<item value="Movedetector_processCharValueChangeEvt"/>
+			<item value="ledBlinkClock"/>
+			<item value="MDP_CHAR_CHANGE_EVT"/>
+			<item value="Movedetector_RegisterAppCBs"/>
+			<item value="Angela"/>
+			<item value="MDP_LED_BLINK_EVT"/>
+			<item value="toggle_led"/>
+			<item value="Movedetector_createTask"/>
+			<item value="movedetector_WriteAttrCB"/>
+			<item value="_createTask"/>
+			<item value="SimpleBLEPeripheral_createTask"/>
+			<item value="SimpleProfile_SetParameter"/>
+			<item value="SABLEXR2_DEV_BOARDh"/>
+			<item value="CC2640R2_LAUNCHXL"/>
+		</list>
+	</section>
+	<section name="completion_proposal_size">
+	</section>
+</section>

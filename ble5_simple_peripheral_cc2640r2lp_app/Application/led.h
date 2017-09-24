@@ -9,8 +9,8 @@
 #define APPLICATION_LED_H_
 
 
-#define LED_ON          	(1)
-#define LED_OFF         	(0)
+#define LED_ON          	Board_LED_ON
+#define LED_OFF         	Board_LED_OFF
 
 #define LED_BLINK_COUNT_1 	10
 
@@ -25,7 +25,7 @@ enum LED_State {
 
 
 void Led_init(void);
-void toggle_led(void);
+void Toggle_led(void);
 //void Led_Flash(LED_State flash_type);
 
 

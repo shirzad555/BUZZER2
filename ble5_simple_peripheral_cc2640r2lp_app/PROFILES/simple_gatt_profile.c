@@ -238,7 +238,7 @@ static uint8 movedetectorChar2 = 22;
 static gattCharCfg_t *movedetectorChar2Config;
 
 // MoveDetector Service Characteristic 2 User Description
-static uint8 movedetectorChar2UserDesp[] = "MoveDetector Value Notification\0";
+static uint8 movedetectorChar2UserDesp[14] = "Value Notify\0";
 
 // MoveDetector Service Characteristic 3 Properties
 static uint8 movedetectorChar3Props = GATT_PROP_READ | GATT_PROP_WRITE;
@@ -348,7 +348,9 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 {
   // Simple Profile Service
   {
- //   { ATT_BT_UUID_SIZE, primaryServiceUUID }, /* type */
+
+// //   { ATT_BT_UUID_SIZE, primaryServiceUUID },
+
 //    GATT_PERMIT_READ,                         /* permissions */
 //    0,                                        /* handle */
 //    (uint8 *)&simpleProfileService            /* pValue */
@@ -510,18 +512,7 @@ bStatus_t utilExtractUuid16(gattAttribute_t *pAttr, uint16_t *pUuid)
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
-/*
-static bStatus_t simpleProfile_ReadAttrCB(uint16_t connHandle,
-                                          gattAttribute_t *pAttr,
-                                          uint8_t *pValue, uint16_t *pLen,
-                                          uint16_t offset, uint16_t maxLen,
-                                          uint8_t method);
-static bStatus_t simpleProfile_WriteAttrCB(uint16_t connHandle,
-                                           gattAttribute_t *pAttr,
-                                           uint8_t *pValue, uint16_t len,
-                                           uint16_t offset, uint8_t method);
 
-*/
 static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
                                           gattAttribute_t *pAttr,
                                           uint8_t *pValue, uint16_t *pLen,
@@ -532,6 +523,17 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
                                            uint8_t *pValue, uint16_t len,
                                            uint16_t offset, uint8_t method);
 
+/*
+static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
+                                          gattAttribute_t *pAttr,
+                                          uint8_t *pValue, uint16_t *pLen,
+                                          uint16_t offset, uint16_t maxLen,
+                                          uint8_t method);
+static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
+                                           gattAttribute_t *pAttr,
+                                           uint8_t *pValue, uint16_t len,
+                                           uint16_t offset, uint8_t method);
+*/
 /*********************************************************************
  * PROFILE CALLBACKS
  */
@@ -650,7 +652,7 @@ bStatus_t Movedetector_AddService( uint32 services )
     return ( bleAlreadyInRequestedMode );
   }
 }*/
-bStatus_t Movedetector_RegisterAppCBs( movedetectorCBs_t *appCallbacks ) // Movedetector_RegisterAppCBs
+bStatus_t Movedetector_RegisterAppCBs( movedetectorCBs_t *appCallbacks )
 {
   if ( appCallbacks )
   {
@@ -894,12 +896,14 @@ static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
 
   uint8 valueToCopy;
 
+/*
   // If attribute permissions require authorization to read, return error
   if ( gattPermitAuthorRead( pAttr->permissions ) )
   {
     // Insufficient authorization
     return ( ATT_ERR_INSUFFICIENT_AUTHOR );
   }
+*/
 
   // Make sure it's not a blob operation (no attributes in the profile are long)
   if ( offset > 0 )
@@ -1042,15 +1046,16 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
 {
   uint16 uuid;
   bStatus_t status = SUCCESS;
-  uint8 notifyApp = 0xFF;
+  uint8_t notifyApp = 0xFF;
 
   // If attribute permissions require authorization to write, return error
-  if ( gattPermitAuthorWrite( pAttr->permissions ) )
+  // you have to define a call back function if you want to check for authorization, it's Null right now, same place you defined _WriteAttrCB and _ReadAttrCB
+/*  if ( gattPermitAuthorWrite( pAttr->permissions ) )
   {
     // Insufficient authorization
     return ( ATT_ERR_INSUFFICIENT_AUTHOR );
   }
-
+*/
 
   if (utilExtractUuid16(pAttr,&uuid) == FAILURE) {
     // Invalid handle

@@ -55,6 +55,8 @@
 #include <ti/sysbios/knl/Event.h>
 #include <ti/sysbios/knl/Queue.h>
 #include <ti/display/Display.h>
+#include <ti/sysbios/knl/Swi.h>
+#include <ti/sysbios/family/arm/m3/Hwi.h>
 
 #if defined( USE_FPGA ) || defined( DEBUG_SW_TRACE )
 #include <driverlib/ioc.h>
@@ -96,6 +98,15 @@
 #include "led.h"
 #include "PINCC26XX.h"
 #include "alarm.h"
+
+#include <ti/drivers/UART.h>
+#include <ti/drivers/uart/UARTCC26XX.h>
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+#include "tl.h"
+#endif //TL
+
+#include "console.h"
 /*********************************************************************
  * CONSTANTS
  */
@@ -146,9 +157,6 @@
 #define MDP_LED_BLINK_EVT_PERIOD              250
 #define MDP_SENSOR_MOVE_EVT_PERIOD            40
 
-// Application specific event ID for HCI Connection Event End Events
-#define SBP_HCI_CONN_EVT_END_EVT              0x0001
-
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
   #if defined(BOARD_DISPLAY_USE_LCD) && (BOARD_DISPLAY_USE_LCD!=0)
@@ -175,35 +183,51 @@
 #endif
 
 // Internal Events for RTOS application
-#define MDP_STATE_CHANGE_EVT                  0x0001
-#define MDP_CHAR_CHANGE_EVT                   0x0002
-#define MDP_PERIODIC_EVT                      0x0004
-#define MDP_CONN_EVT_END_EVT                  0x0008
+#define MDP_STATE_CHANGE_EVT                  Event_Id_00
+#define MDP_CHAR_CHANGE_EVT                   Event_Id_01
+#define MDP_PERIODIC_EVT                      Event_Id_02
+#define MDP_CONN_EVT_END_EVT                  Event_Id_03
+
+#define MDP_KEY_CHANGE_EVT                    Event_Id_04
+#define MDP_LED_BLINK_EVT                     Event_Id_05
+#define MDP_SENSOR_MOVE_EVT                   Event_Id_06
+
+// Application specific event ID for HCI Connection Event End Events
+#define SBP_HCI_CONN_EVT_END_EVT              Event_Id_07
 
 // Internal Events for RTOS application
 #define SBP_ICALL_EVT                         ICALL_MSG_EVENT_ID // Event_Id_31
 #define SBP_QUEUE_EVT                         UTIL_QUEUE_EVENT_ID // Event_Id_30
-#define SBP_PERIODIC_EVT                      Event_Id_00
+//#define SBP_PERIODIC_EVT                      Event_Id_00
 
-#define MDP_KEY_CHANGE_EVT                    0x0010
-#define MDP_LED_BLINK_EVT                     0x0020
-#define MDP_SENSOR_MOVE_EVT                   0x0040
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+//events that TL will use to control the driver
+#define TRANSPORT_RX_EVENT                    Event_Id_09
+#define MRDY_EVENT                            Event_Id_08
+#define TRANSPORT_TX_DONE_EVENT               Event_Id_10
+#endif //TL
 
 
 #ifdef FEATURE_OAD
 // Additional Application Events for OAD
-#define SBP_QUEUE_PING_EVT                    Event_Id_01
+#define SBP_QUEUE_PING_EVT                    Event_Id_08
 
 // Bitwise OR of all events to pend on with OAD
 #define SBP_ALL_EVENTS                        (SBP_ICALL_EVT        | \
                                                SBP_QUEUE_EVT        | \
-                                               SBP_PERIODIC_EVT     | \
+                                               MDP_PERIODIC_EVT     | \
                                                SBP_QUEUE_PING_EVT)
 #else
 // Bitwise OR of all events to pend on
+// no need to include the queue events which are captured in "UTIL_QUEUE_EVENT_ID", when you queue any of the 3 guys (char change, key change and stack event change) you create a "UTIL_QUEUE_EVENT_ID", when in endless loop we see this event we un-queue the message and then we know which of the 3 guys happened
 #define SBP_ALL_EVENTS                        (SBP_ICALL_EVT        | \
                                                SBP_QUEUE_EVT        | \
-                                               SBP_PERIODIC_EVT)
+                                               MDP_LED_BLINK_EVT    | \
+                                               MDP_SENSOR_MOVE_EVT  | \
+                                               MDP_PERIODIC_EVT)
+
+                                               /*MDP_LED_BLINK_EVT    | \
+                                               MDP_KEY_CHANGE_EVT   | \ */
 #endif /* FEATURE_OAD */
 
 // Row numbers for two-button menu
@@ -215,6 +239,11 @@
 
 #define SENSOR_MOVE_COUNT                       10
 #define ALARM_MOVEMENT_THRESHOLD                10
+
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+#define APP_TL_BUFF_SIZE                      150
+#endif //TL
 
 /*********************************************************************
  * TYPEDEFS
@@ -234,16 +263,28 @@ typedef struct
 // Display Interface
 Display_Handle dispHandle = NULL;
 
+//static UART_Handle uartHandle;
+
+
+//! \brief Pointer to NPI TL RX Buffer
+//static Char* TransportTxBuf;
+
+//extern UARTCC26XX_Object uartCC26XXObjects[];
+
+//ICall_Semaphore sem; // Semaphore used for ICall
+
 /*********************************************************************
  * LOCAL VARIABLES
  */
-
+uint8_t tempMem = 0;
 // Entity ID globally used to check for source and/or destination of messages
 static ICall_EntityID selfEntity;
 
 // Event globally used to post local events and pend on system and
 // local events.
-static ICall_SyncHandle syncEvent;
+static ICall_SyncHandle syncEvent; // Synchronization object data type
+
+//static ICall_SyncHandle syncEvent2; // Synchronization object data type
 
 // Clock instances for internal periodic events.
 static Clock_Struct periodicClock;
@@ -268,7 +309,7 @@ Char sbpTaskStack[SBP_TASK_STACK_SIZE];
 static uint8_t scanRspData[] =
 {
   // complete name
-  0x17,   // length of this data
+  17,   // length of this data
   GAP_ADTYPE_LOCAL_NAME_COMPLETE,
   'C',
   'C',
@@ -333,7 +374,7 @@ static uint8_t advertData[] =
 };
 
 // GAP GATT Attributes
-static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Project Angela"; // "Simple Peripheral";
+static uint8_t attDeviceName[GAP_DEVICE_NAME_LEN] = "Project Angela"; // "Project Angela"; // "Simple Peripheral";
 
 // Globals used for ATT Response retransmission
 static gattMsgEvent_t *pAttRsp = NULL;
@@ -345,6 +386,12 @@ uint8_t sensorCheckCount = 0;
 static uint16_t static_xyzValue[3][SENSOR_MOVE_COUNT];
 //static uint16_t static_yValue[SENSOR_MOVE_COUNT];
 //static uint16_t static_zValue[SENSOR_MOVE_COUNT];
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+//used to store data read from transport layer
+static uint8_t appRxBuf[APP_TL_BUFF_SIZE];
+#endif //TL
+
 /*********************************************************************
  * LOCAL FUNCTIONS
  */
@@ -369,19 +416,29 @@ static void Movedetector_stateChangeCB(gaprole_States_t newState);
 static void Movedetector_charValueChangeCB(uint8_t paramID);
 #endif //!FEATURE_OAD_ONCHIP
 static void Movedetector_enqueueMsg(uint8_t event, uint8_t state);
+//static void MovedetectorSensor_enqueueMsg(uint8_t event, uint8_t state);
 
 #ifdef FEATURE_OAD
 void Movedetector_processOadWriteCB(uint8_t event, uint16_t connHandle,
                                            uint8_t *pData);
 #endif //FEATURE_OAD
 
-#if !defined(Display_DISABLE_ALL)
-void Movedetector_keyChangeHandler(uint8 keys);
-static void Movedetector_handleKeys(uint8_t keys);
-#endif  // !Display_DISABLE_ALL
-
+void MovedetectorSensor_keyChangeHandler(uint8 keysPressed);
+//static void Movedetector_handleKeys(uint8_t keys);
+static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys);
 static void ReadSensorValue(void);
 static void CheckForAlarm(void);
+
+//uint8_t SimpleUART_initialize(Char *tRxBuf, Char *tTxBuf);
+//void Write_Hello(void);
+//static void NPITLUART_writeCallBack(UART_Handle handle, void *ptr, size_t size);
+//static void NPITLUART_readCallBack(UART_Handle handle, void *ptr, size_t size);
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+//TL packet parser
+static void SimpleBLEPeripheral_TLpacketParser(void);
+#endif //TL
+
 /*********************************************************************
  * EXTERN FUNCTIONS
  */
@@ -421,10 +478,191 @@ static oadTargetCBs_t movedetector_oadCBs =
 };
 #endif //FEATURE_OAD
 
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+static TLCBs_t SimpleBLEPeripheral_TLCBs =
+{
+  SimpleBLEPeripheral_TLpacketParser // parse data read from transport layer
+};
+#endif
+
 /*********************************************************************
  * PUBLIC FUNCTIONS
  */
 
+/*
+// -----------------------------------------------------------------------------
+//! \brief      This routine initializes the transport layer and opens the port
+//!             of the device.
+//!
+//! \param[in]  tRxBuf - pointer to NPI TL Tx Buffer
+//! \param[in]  tTxBuf - pointer to NPI TL Rx Buffer
+//! \param[in]  npiCBack - NPI TL call back function to be invoked at the end of
+//!             a UART transaction
+//!
+//! \return     void
+// -----------------------------------------------------------------------------
+uint8_t SimpleUART_initialize(Char *tRxBuf, Char *tTxBuf)
+{
+    UART_Params params;
+
+//    TransportRxBuf = tRxBuf;
+    TransportTxBuf = tTxBuf;
+//    npiTransmitCB = npiCBack;
+
+    // Initialize the UART driver
+    Board_initUART();
+
+    // Configure UART parameters.
+    UART_Params_init(&params);
+    params.baudRate = 115200;
+    params.readDataMode = UART_DATA_BINARY;
+    params.writeDataMode = UART_DATA_BINARY;
+    params.dataLength = UART_LEN_8;
+    params.stopBits = UART_STOP_ONE;
+    params.readMode = UART_MODE_BLOCKING;
+    params.writeMode = UART_MODE_BLOCKING;
+    params.readEcho = UART_ECHO_OFF;
+
+    params.readCallback = NPITLUART_readCallBack;
+    params.writeCallback = NPITLUART_writeCallBack;
+
+    // Open / power on the UART.
+    uartHandle = UART_open(Board_UART0, &params);
+    //Enable Partial Reads on all subsequent UART_read()
+//    UART_control(uartHandle, UARTCC26XX_CMD_RETURN_PARTIAL_ENABLE,  NULL);
+
+
+#if (NPI_FLOW_CTRL == 0)
+    // This call will start repeated Uart Reads when Power Savings is disabled
+    NPITLUART_readTransport();
+#endif // NPI_FLOW_CTRL = 0
+
+    return 0;
+}
+
+void Write_Hello(void)
+{
+//    uint8_t tempstatus = 13;
+    ICall_CSState key;
+    key = ICall_enterCriticalSection();
+
+    //TransportTxLen = len;
+
+#if (NPI_FLOW_CTRL == 1)
+    TxActive = TRUE;
+
+    // Start reading prior to impending write transaction
+    // We can only call UART_write() once MRDY has been signaled from Master
+    // device
+    //NPITLUART_readTransport();
+#else
+    // Check to see if transport is successful. If not, reset TxLen to allow
+    // another write to be processed
+    if(UART_write(uartHandle, TransportTxBuf, 13) == UART_ERROR ) //UART_write(uartHandle, TransportTxBuf, TransportTxLen) == UART_ERROR
+    {
+      //TransportTxLen = 0;
+    }
+#endif // NPI_FLOW_CTRL = 1
+    ICall_leaveCriticalSection(key);
+
+   // return TransportTxLen;
+   // tempstatus =  UART_write(uartHandle, TransportTxBuf, 13) ;
+}
+// -----------------------------------------------------------------------------
+//! \brief      This callback is invoked on Read completion of readSize/receive
+//!             timeout
+//!
+//! \param[in]  handle - handle to the UART port
+//! \param[in]  ptr    - pointer to buffer to read data into
+//! \param[in]  size   - size of the data
+//!
+//! \return     void
+// -----------------------------------------------------------------------------
+static void NPITLUART_readCallBack(UART_Handle handle, void *ptr, size_t size)
+{
+    ICall_CSState key;
+    key = ICall_enterCriticalSection();
+
+    if (size)
+    {
+        if (size != NPITLUART_readIsrBuf(size))
+        {
+            // Buffer overflow imminent. Cancel read and pass to higher layers
+            // for handling
+#if (NPI_FLOW_CTRL == 1)
+            RxActive = FALSE;
+#endif // NPI_FLOW_CTRL = 1
+            if ( npiTransmitCB )
+            {
+                npiTransmitCB(NPI_TL_BUF_SIZE,TransportTxLen);
+            }
+        }
+    }
+
+#if (NPI_FLOW_CTRL == 1)
+    // Read has been cancelled by transport layer, or bus timeout and no bytes in FIFO
+    //    - do not invoke another read
+    if ( !UARTCharsAvail(((UARTCC26XX_HWAttrsV2 const *)(uartHandle->hwAttrs))->baseAddr) &&
+            mrdy_flag )
+    {
+        RxActive = FALSE;
+
+        // If TX has also completed then we are safe to issue call back
+        if ( !TxActive && npiTransmitCB )
+        {
+            npiTransmitCB(TransportRxLen,TransportTxLen);
+        }
+    }
+    else
+    {
+        UART_read(uartHandle, &isrRxBuf[0], UART_ISR_BUF_SIZE);
+    }
+#else
+    if ( npiTransmitCB )
+    {
+        npiTransmitCB(size,0);
+    }
+    TransportRxLen = 0;
+    UART_read(uartHandle, &isrRxBuf[0], UART_ISR_BUF_SIZE);
+#endif // NPI_FLOW_CTRL = 1
+
+    ICall_leaveCriticalSection(key);
+}
+// -----------------------------------------------------------------------------
+//! \brief      This callback is invoked on Write completion
+//!
+//! \param[in]  handle - handle to the UART port
+//! \param[in]  ptr    - pointer to data to be transmitted
+//! \param[in]  size   - size of the data
+//!
+//! \return     void
+// -----------------------------------------------------------------------------
+static void NPITLUART_writeCallBack(UART_Handle handle, void *ptr, size_t size)
+{
+    ICall_CSState key;
+    key = ICall_enterCriticalSection();
+
+#if (NPI_FLOW_CTRL == 1)
+    if ( !RxActive )
+    {
+        UART_readCancel(uartHandle);
+        if ( npiTransmitCB )
+        {
+            npiTransmitCB(TransportRxLen,TransportTxLen);
+        }
+    }
+
+    TxActive = FALSE;
+#else
+//    if ( npiTransmitCB )
+//    {
+//        npiTransmitCB(0,TransportTxLen);
+//    }
+#endif // NPI_FLOW_CTRL = 1
+
+    ICall_leaveCriticalSection(key);
+}
+*/
 /*********************************************************************
  * @fn      Movedetector_createTask
  *
@@ -467,12 +705,22 @@ static void Movedetector_init(void)
     filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
     filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
     filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
+
+    /*
+    // Enable System_printf(..) UART output
+    UART_Handle uart_handle;
+    UART_Params uartParams;
+    */
+//    Char tRxBuf[] = "Hello World";    // Transmit buffer
+//    uint8_t tTxBuf[] = "Hello World";    // Transmit buffer
+
   // ******************************************************************
   // N0 STACK API CALLS CAN OCCUR BEFORE THIS CALL TO ICall_registerApp
   // ******************************************************************
   // Register the current thread as an ICall dispatcher application
   // so that the application can send and receive messages.
   ICall_registerApp(&selfEntity, &syncEvent);
+//  ICall_registerApp(&selfEntity, &syncEvent2);
 
 #ifdef USE_RCOSC
   RCOSC_enableCalibration();
@@ -501,7 +749,7 @@ static void Movedetector_init(void)
 
   // Create one-shot clocks for internal periodic events.
   Util_constructClock(&periodicClock, Movedetector_clockHandler,
-                      MDP_PERIODIC_EVT_PERIOD, 0, false, SBP_PERIODIC_EVT);
+                      MDP_PERIODIC_EVT_PERIOD, 0, false, MDP_PERIODIC_EVT);
 
   // Create one-shot clocks for led_blinking events.
   Util_constructClock(&ledBlinkClock, Movedetector_clockHandler,
@@ -513,14 +761,58 @@ static void Movedetector_init(void)
 
 
   // Initialize keys
-//  Board_initKeys(MovedetectorSensor_keyChangeHandler);
+  Board_initKeys(MovedetectorSensor_keyChangeHandler);
 
   // Init LED
-//  Led_init();
-  //PINCC26XX_setOutputValue(SPI_CS, 1);
-  //PINCC26XX_setOutputEnable(SPI_MISO, 1);
-  //PINCC26XX_setOutputValue(SPI_MISO, 0);
-  LIS3DH_Initialize();
+  Led_init();
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+  //initialize and pass information to TL
+  TLinit(&syncEvent, &SimpleBLEPeripheral_TLCBs, TRANSPORT_TX_DONE_EVENT, TRANSPORT_RX_EVENT, MRDY_EVENT); // sem
+#endif //TL
+
+//  while(1)
+//  {
+//  tTxBuf = "Hello World";
+  uint8_t tTxBuf[] = "Hello World";
+      TLwrite (tTxBuf, sizeof(tTxBuf));
+      //This function will write len amount of bytes via SPI/UART starting at memory location buf
+//  }
+      //temp = 0;
+      //RPrintf("******* %d\r\n", temp);
+
+/*
+  UART_Params_init(&uartParams);
+  uartParams.baudRate = 115200;
+  uartParams.dataLength = UART_LEN_8;
+  uartParams.stopBits = UART_STOP_ONE;
+  uartParams.readEcho = UART_ECHO_OFF;
+
+  UART_init();
+  //UartPrintf_init(UART_open(CC2640R2_SABLEXR2_UART0, &uartParams));
+  uart_handle = UART_open(CC2640R2_SABLEXR2_UART0, &uartParams);
+  if (uart_handle == NULL) {
+      //System_abort("Error opening the UART");
+  }
+  UART_write(uart_handle, txBuf, sizeof(txBuf));
+*/
+//  SimpleUART_initialize(tRxBuf, tTxBuf);
+//  Write_Hello();
+
+
+//  PINCC26XX_setOutputValue(Board_SPI0_CSN, 1);
+//  PINCC26XX_setOutputEnable(Board_SPI0_CLK, 1);
+//  PINCC26XX_setOutputValue(Board_SPI0_CLK, 0);
+
+  ////////////////////////////////// LIS3DH /////////////////////////////////////////////////////
+
+  if (!LIS3DH_Initialize())
+  {
+      PINCC26XX_setOutputValue(Board_BLED, 0);
+      while(1);
+      //tempMem = 1;
+  }
+
   LIS3DH_SetDeviceMode(LIS3DH_MODE_LOW_POWER, LIS3DH_ODR_25_HZ, LIS3DH_FULL_SCALE_SELECTION_4G);
   /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
   LIS3DH_SetFilter(filter_Parms);
@@ -529,7 +821,10 @@ static void Movedetector_init(void)
   LIS3DH_Interrupt1Duration(2);// you can add duration here too
   LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
   LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+  RPrintf("8\r\n");
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
   dispHandle = Display_open(SBP_DISPLAY_TYPE, NULL);
 
@@ -743,15 +1038,15 @@ static void Movedetector_init(void)
       TBM_SET_TITLE(&sbpMenuMain, "BLE Peripheral B");
     #endif // HAL_IMAGE_A
   #else
-    TBM_SET_TITLE(&sbpMenuMain, "BLE Peripheral");
+//    TBM_SET_TITLE(&sbpMenuMain, "BLE Peripheral");
   #endif // FEATURE_OAD
 
   // Initialize Two-Button Menu module
-  tbm_setItemStatus(&sbpMenuMain, TBM_ITEM_NONE, TBM_ITEM_ALL);
-  tbm_initTwoBtnMenu(dispHandle, &sbpMenuMain, 3, NULL);
+//  tbm_setItemStatus(&sbpMenuMain, TBM_ITEM_NONE, TBM_ITEM_ALL);
+//  tbm_initTwoBtnMenu(dispHandle, &sbpMenuMain, 3, NULL);
 
   // Init key debouncer
-  Board_initKeys(Movedetector_keyChangeHandler);
+//  Board_initKeys(Movedetector_keyChangeHandler);
 #endif  // !Display_DISABLE_ALL
 
 #if !defined (USE_LL_CONN_PARAM_UPDATE)
@@ -759,7 +1054,7 @@ static void Movedetector_init(void)
   // The will result in a HCI_LE_READ_LOCAL_SUPPORTED_FEATURES event that
   // will get received in the main task processing loop. At this point,
   // feature bits can be set / cleared and the features can be updated.
-  HCI_LE_ReadLocalSupportedFeaturesCmd();
+//  HCI_LE_ReadLocalSupportedFeaturesCmd();
 #endif // !defined (USE_LL_CONN_PARAM_UPDATE)
 
   // Start the GAPRole
@@ -791,7 +1086,7 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
     events = Event_pend(syncEvent, Event_Id_NONE, SBP_ALL_EVENTS,
                         ICALL_TIMEOUT_FOREVER);
 
-    if (events)
+    if(events)// (events)
     {
       ICall_EntityID dest;
       ICall_ServiceEnum src;
@@ -834,7 +1129,7 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
       }
 
       // If RTOS queue is not empty, process app message.
-      if (events & SBP_QUEUE_EVT)
+      if (events & UTIL_QUEUE_EVENT_ID)
       {
         while (!Queue_empty(appMsgQueue))
         {
@@ -850,22 +1145,23 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
         }
       }
 
-      if (events & SBP_PERIODIC_EVT)
+      if (events & MDP_PERIODIC_EVT)
       {
         Util_startClock(&periodicClock);
 
         // Perform periodic application task
         Movedetector_performPeriodicTask();
       }
-      if (events & MDP_LED_BLINK_EVT && ledBlinkCount > 0)
+      if ( events & MDP_LED_BLINK_EVT && ledBlinkCount > 0) // events & MDP_LED_BLINK_EVT &&
       {
           events &= ~MDP_LED_BLINK_EVT;
           ledBlinkCount--;
-          Util_startClock(&ledBlinkClock);
+          Util_startClock(&ledBlinkClock);  // start the next clock, this will continue until the led blink counter is zero
      //     Log_print0(Diags_USER1, "Toggling led\r\n");
-          toggle_led();
+          Toggle_led();
           valueForTest++;
           Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t), &valueForTest);
+          PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
       }
       if (events & MDP_SENSOR_MOVE_EVT)
       {
@@ -882,6 +1178,15 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
               CheckForAlarm();
           }
       }
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+      if (events & MRDY_EVENT || events & TRANSPORT_RX_EVENT || events & TRANSPORT_TX_DONE_EVENT)
+      {
+          //TL handles driver events. this must be done first
+//          TL_handleISRevent();
+      }
+#endif //TL
+
 #ifdef FEATURE_OAD
       if (events & SBP_QUEUE_PING_EVT)
       {
@@ -1186,12 +1491,18 @@ static void Movedetector_processAppMsg(sbpEvt_t *pMsg)
       Movedetector_processCharValueChangeEvt(pMsg->hdr.state);
       break;
 
+    case MDP_KEY_CHANGE_EVT:
+        // RPrintf("M\r\n");
+//         PINCC26XX_setOutputValue(Board_GLED, LED_OFF);
+         MovedetectorSensor_handleKeys(0, pMsg->hdr.state);
+      break;
+/*
 #if !defined(Display_DISABLE_ALL)
     case MDP_KEY_CHANGE_EVT:
       Movedetector_handleKeys(pMsg->hdr.state);
       break;
 #endif  // !Display_DISABLE_ALL
-
+*/
     default:
       // Do nothing.
       break;
@@ -1259,7 +1570,8 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ADVERTISING:
-      Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Advertising");
+//      Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Advertising");
+//      Log_print0(0, "Advertising\r\n");
       break;
 
 #ifdef PLUS_BROADCASTER
@@ -1300,6 +1612,7 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 
         // Use numActive to determine the connection handle of the last
         // connection
+        RPrintf("GAPROLE_CONNECTED\r\n");
         if ( linkDB_GetInfo( numActive - 1, &linkInfo ) == SUCCESS )
         {
           Display_print1(dispHandle, SBP_ROW_ROLESTATE, 0, "Num Conns: %d", (uint16_t)numActive);
@@ -1344,14 +1657,16 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_CONNECTED_ADV:
-      Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Connected Advertising");
+      //Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Connected Advertising");
+        RPrintf("GAPROLE_CONNECTED_ADV\r\n");
       break;
 
     case GAPROLE_WAITING:
       Util_stopClock(&periodicClock);
       Movedetector_freeAttRsp(bleNotConnected);
+      RPrintf("GAPROLE_WAITING\r\n");
 
-      Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Disconnected");
+      //Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Disconnected");
 
 #if !defined(Display_DISABLE_ALL)
       // Disable PHY change
@@ -1359,20 +1674,20 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 #endif  // !Display_DISABLE_ALL
 
       // Clear remaining lines
-      Display_clearLines(dispHandle, SBP_ROW_RESULT, SBP_ROW_STATUS_2);
+      //Display_clearLines(dispHandle, SBP_ROW_RESULT, SBP_ROW_STATUS_2);
       break;
 
     case GAPROLE_WAITING_AFTER_TIMEOUT:
       Movedetector_freeAttRsp(bleNotConnected);
 
-      Display_print0(dispHandle, SBP_ROW_RESULT, 0, "Timed Out");
+      //Display_print0(dispHandle, SBP_ROW_RESULT, 0, "Timed Out");
 
 #if !defined(Display_DISABLE_ALL)
       tbm_setItemStatus(&sbpMenuMain, TBM_ITEM_NONE, TBM_ITEM_ALL);
 #endif  // !Display_DISABLE_ALL
 
       // Clear remaining lines
-      Display_clearLines(dispHandle, SBP_ROW_STATUS_1, SBP_ROW_STATUS_2);
+      //Display_clearLines(dispHandle, SBP_ROW_STATUS_1, SBP_ROW_STATUS_2);
 
       #ifdef PLUS_BROADCASTER
         // Reset flag for next connection.
@@ -1381,11 +1696,11 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
       break;
 
     case GAPROLE_ERROR:
-      Display_print0(dispHandle, SBP_ROW_RESULT, 0, "Error");
+      //Display_print0(dispHandle, SBP_ROW_RESULT, 0, "Error");
       break;
 
     default:
-      Display_clearLines(dispHandle, SBP_ROW_RESULT, SBP_ROW_STATUS_2);
+      //Display_clearLines(dispHandle, SBP_ROW_RESULT, SBP_ROW_STATUS_2);
       break;
   }
 
@@ -1466,7 +1781,7 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
       break;
 
     case MOVEDETECTOR_CHAR3:
-      Start_Alarm(); //TODO
+      Start_Alarm();
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
       break;
 
@@ -1494,8 +1809,21 @@ static void Movedetector_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
   uint8_t valueToCopy;
-
+//  uint8_t tTxBuf[] = "Hello World";    // Transmit buffer
+//  uint8_t bVal = PINCC26XX_getOutputValue(Board_SPI0_CLK);
+//  PINCC26XX_setOutputValue(Board_SPI0_CLK, !bVal);
+  //PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+//  Toggle_led();
   // Call to retrieve the value of the third characteristic in the profile
+//  TransportTxBuf = tTxBuf;
+//  Write_Hello();
+//  TLwrite (tTxBuf, sizeof(tTxBuf));
+//
+  if(1) //(tempMem == 1)
+  {
+      RPrintf("Hola Hola Hola Hola\r\n");
+      //Toggle_led();
+  }
   if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
   {
     // Call to set that value of the fourth characteristic in the profile.
@@ -1563,7 +1891,7 @@ static void Movedetector_clockHandler(UArg arg)
   Event_post(syncEvent, arg);
 }
 
-#if !defined(Display_DISABLE_ALL)
+//#if !defined(Display_DISABLE_ALL)
 /*********************************************************************
  * @fn      Movedetector_keyChangeHandler
  *
@@ -1573,11 +1901,11 @@ static void Movedetector_clockHandler(UArg arg)
  *
  * @return  none
  */
-void Movedetector_keyChangeHandler(uint8 keys)
-{
-  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keys);
-}
-#endif  // !Display_DISABLE_ALL
+//void Movedetector_keyChangeHandler(uint8 keys)
+//{
+//  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keys);
+//}
+//#endif  // !Display_DISABLE_ALL
 
 /*********************************************************************
  * @fn      Movedetector_enqueueMsg
@@ -1604,7 +1932,8 @@ static void Movedetector_enqueueMsg(uint8_t event, uint8_t state)
   }
 }
 
-#if !defined(Display_DISABLE_ALL)
+
+//#if !defined(Display_DISABLE_ALL)
 /*********************************************************************
  * @fn      Movedetector_handleKeys
  *
@@ -1616,8 +1945,9 @@ static void Movedetector_enqueueMsg(uint8_t event, uint8_t state)
  *
  * @return  none
  */
-static void Movedetector_handleKeys(uint8_t keys)
-{
+
+//static void Movedetector_handleKeys(uint8_t keys)
+//{
 /*  if (keys & KEY_LEFT)
   {
     // Check if the key is still pressed. WA for possible bouncing.
@@ -1644,32 +1974,8 @@ static void Movedetector_handleKeys(uint8_t keys)
   }
   */
 //    (void)shift;  // Intentionally unreferenced parameter
-      LIS3DH_Filter filter_Parms;
-      uint8_t temp;
-  if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
-  {
-    PINCC26XX_setOutputValue(Board_GLED, LED_ON);
-//    Log_print0(Diags_USER1, "**\r\n");
-
-      filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
-      filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_BYPASS;
-      filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
-      filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
-
-      /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
-      LIS3DH_SetFilter(filter_Parms);
-  //  LIS3DH_InterruptCtrl();
-  //  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
-  //  LIS3DH_Interrupt1Duration(2);// you can add duration here too
-  //  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
-      LIS3DH_Interrupt1Config(0x00); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
-
-      LIS3DH_ReadINT1Source(&temp); // Return the event that has triggered the interrupt and clear interrupt
-      sensorCheckCount = SENSOR_MOVE_COUNT;
-    Util_startClock(&sensorMovementClock);
-  }
-  return;
-}
+//  return;
+//}
 
 /*********************************************************************
  * @fn      Movedetector_doSetPhy
@@ -1713,12 +2019,126 @@ bool Movedetector_doSetPhy(uint8 index)
 
   return true;
 }
-#endif  // !Display_DISABLE_ALL
+//#endif  // !Display_DISABLE_ALL
 
 /*********************************************************************
 *********************************************************************/
 /*********************************************************************
 *********************************************************************/
+/*********************************************************************
+ * @fn      Movedetector_enqueueMsg
+ *
+ * @brief   Creates a message and puts the message in RTOS queue.
+ *
+ * @param   event - message event.
+ * @param   state - message state.
+ *
+ * @return  None.
+ */
+/*
+static void MovedetectorSensor_enqueueMsg(uint8_t event, uint8_t state)
+{
+  sbpEvt_t *pMsg;
+
+  // Create dynamic pointer to message.
+  if ((pMsg = ICall_malloc(sizeof(sbpEvt_t))))
+  {
+    pMsg->hdr.event = event;
+    pMsg->hdr.state = state;
+
+    // Enqueue the message.
+    //Util_enqueueMsg(appMsgQueue, sem, (uint8*)pMsg);
+    Util_enqueueMsg(appMsgQueue, syncEvent, (uint8*)pMsg);
+  }
+}
+*/
+
+/*********************************************************************
+ * @fn      MovedetectorSensor_handleKeys
+ *
+ * @brief   Handles all key events for this device.
+ *
+ * @param   shift - true if in shift/alt.
+ * @param   keys - bit field for key events. Valid entries:
+ *                 HAL_KEY_SW_2
+ *                 HAL_KEY_SW_1
+ *
+ * @return  none
+ */
+static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys)
+{
+  (void)shift;  // Intentionally unreferenced parameter
+    LIS3DH_Filter filter_Parms;
+    uint8_t temp;
+
+    RPrintf("Testing for sure!!!\r\n");
+    PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
+
+if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
+{
+  PINCC26XX_setOutputValue(Board_BLED, LED_ON);
+//  Log_print0(Diags_USER1, "**\r\n");
+
+    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
+    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_BYPASS;
+    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
+    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
+
+    /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
+    LIS3DH_SetFilter(filter_Parms);
+//  LIS3DH_InterruptCtrl();
+//  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
+//  LIS3DH_Interrupt1Duration(2);// you can add duration here too
+//  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
+    LIS3DH_Interrupt1Config(0x00); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+
+    LIS3DH_ReadINT1Source(&temp); // Return the event that has triggered the interrupt and clear interrupt
+    sensorCheckCount = SENSOR_MOVE_COUNT;
+  Util_startClock(&sensorMovementClock);
+}
+/*  uint8_t moveDetector;
+  Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &moveDetector);
+  if (keys & KEY_UP)
+  {
+    if (moveDetector < 255)
+    {
+      moveDetector++;
+      Movedetector_SetParameter(MOVEDETECTOR_CHAR1, sizeof(uint8_t),
+                                   &moveDetector);
+    }
+  }
+
+  if (keys & KEY_DOWN)
+  {
+    if (moveDetector > 0)
+    {
+        moveDetector--;
+        Movedetector_SetParameter(MOVEDETECTOR_CHAR1, sizeof(uint8_t),
+                                   &moveDetector);
+    }
+  }
+  */
+//  LCD_WRITE_STRING_VALUE("Sunlight:", (uint16_t)moveDetector, 10, LCD_PAGE5);
+  return;
+}
+
+/*********************************************************************
+ * @fn      MovedetectorSensor_keyChangeHandler
+ *
+ * @brief   Key event handler function
+ *
+ * @param   a0 - ignored
+ *
+ * @return  none
+ */
+void MovedetectorSensor_keyChangeHandler(uint8 keysPressed)
+{
+//    RPrintf("Testing for sure2!!!\r\n");
+//  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keysPressed); //HOLA
+  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keysPressed);
+}
+
+
 /////// Read XYZ and see if the detected movement from HPF is real (not noise) //////////////
 void ReadSensorValue(void)
 {
@@ -1798,4 +2218,37 @@ static void CheckForAlarm(void)
   LIS3DH_ReadRefrence(&bVal); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
   LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
 }
+
+//Define the callback function which will parse any data received from the TL. Instead of echoing, this should be modified to parse the user's custom packet format and proceed as desired.
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+static void SimpleBLEPeripheral_TLpacketParser(void)
+{
+  //read available bytes
+  uint8_t len = TLgetRxBufLen();
+  if (len >= APP_TL_BUFF_SIZE)
+  {
+    len = APP_TL_BUFF_SIZE;
+  }
+  TLread(appRxBuf, len);
+
+  // ADD PACKET PARSER HERE
+  // for now we just echo...
+
+ // TLwrite(appRxBuf, len);
+}
+#endif //TL
+
+/*
+ * The follow TL functions are available for the application to use (externally declared in tl.h):
+
+void TLinit(ICall_Semaphore *pAppSem, TLCBs_t *appCallbacks, uint16_t TX_DONE_EVENT, uint16_t RX_EVENT, uint16_t MRDY_EVENT)
+this function should only be called once - in the application's init function. This will pass application information to the TL and also configures and initializes the SPI / UART driver.
+void TLwrite (uint8_t *buf, uint8_t len)
+This function will write len amount of bytes via SPI/UART starting at memory location buf
+void TLread (uint8_t *buf, uint8_t len)
+This function will read len amount of bytes from SPI/UART and place them starting at memory location buf
+uint16_t TLgetRxBufLen(void)
+This function will return the amount of bytes available to be read from the NPI circular buffer. See the Software Architecture and Considerations section below for more information.
+*/
+
 

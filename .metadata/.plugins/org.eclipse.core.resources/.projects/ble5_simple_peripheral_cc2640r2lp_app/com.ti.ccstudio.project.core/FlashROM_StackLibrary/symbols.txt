@@ -1,6 +1,6 @@
 #define __unsigned_chars__ 1	/* Predefined */
-#define __DATE__ "Aug 26 2017"	/* Predefined */
-#define __TIME__ "15:49:46"	/* Predefined */
+#define __DATE__ "Sep 20 2017"	/* Predefined */
+#define __TIME__ "22:52:12"	/* Predefined */
 #define __STDC__ 1	/* Predefined */
 #define __STDC_VERSION__ 199901L	/* Predefined */
 #define __STDC_HOSTED__ 1	/* Predefined */
@@ -76,6 +76,7 @@
 #define GAP_BOND_MGR 1
 #define HCI_TL_NONE 1
 #define _OPTIMIZE_FOR_SPACE 1
+#define NPI_USE_UART 1
 #define DeviceFamily_CC26X0R2 1
 #define BOARD_DISPLAY_USE_LCD 0
 #define BOARD_DISPLAY_USE_UART 1

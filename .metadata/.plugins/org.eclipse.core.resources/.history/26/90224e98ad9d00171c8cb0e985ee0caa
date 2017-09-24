@@ -1,0 +1,57 @@
+#include "console.h"
+
+#if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
+#include "tl.h"
+#endif //TL
+
+//#include "stdint.h"
+#include <stdarg.h>
+#include <string.h>
+#include <stdio.h>
+
+
+char buffer[100];
+
+/******************************************************************************
+* Name    : RPrintf
+*
+* Purpose : Outputs data for debugging
+*
+* Input   : port - selection of output port. UART, DBGU, or UART_DBGU
+*           format - string to output
+*            ... - any additional parameters to add into the string
+*
+* Output  :
+*
+* Notes   :
+*   Example usage:
+*       UCHAR value = 0x5;
+*       RPrintf(DBGU, "Display this value [0x%02X]\r\n", value);
+*
+*   Output on DBGU console:
+*       Display this value [0x05]
+*******************************************************************************/
+void RPrintf(char const *format, ...)
+{
+   va_list arg;
+   uint8_t length;
+
+   // Check for valid input
+   if( format == NULL )
+   {
+//      ERROR("RPrintf:: Invalid Input ");
+   }
+
+   // Set start of argument list
+   va_start(arg, format);
+
+   // Determine length of formatted string
+   length = vsprintf(buffer, format, arg);
+
+   // Set end of argument (reset argument pointer)
+   va_end(arg);
+
+   //TxUsart((uint8_t*)buffer, length);
+   TLwrite (buffer, length);
+
+}

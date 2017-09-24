@@ -50,7 +50,7 @@
 #include <stdbool.h>
 #include <ti/sysbios/knl/Clock.h>
 #include <ti/sysbios/family/arm/m3/Hwi.h>
-#include <ti/sysbios/knl/Semaphore.h>
+//#include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Queue.h>
 
 #include <ti/drivers/pin/PINCC26XX.h>

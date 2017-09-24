@@ -6,21 +6,21 @@ SHELL = cmd.exe
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../Hardware/Hwi.c 
+../Hardware/UART.c 
 
 C_DEPS += \
-./Hardware/Hwi.d 
+./Hardware/UART.d 
 
 OBJS += \
-./Hardware/Hwi.obj 
+./Hardware/UART.obj 
 
 OBJS__QUOTED += \
-"Hardware\Hwi.obj" 
+"Hardware\UART.obj" 
 
 C_DEPS__QUOTED += \
-"Hardware\Hwi.d" 
+"Hardware\UART.d" 
 
 C_SRCS__QUOTED += \
-"../Hardware/Hwi.c" 
+"../Hardware/UART.c" 
 
 

@@ -83,6 +83,14 @@ bleUserCfg_t user0Cfg = BLE_USER_CFG;
 #include <inc/hw_prcm.h>
 #endif // USE_FPGA
 
+
+#include <ti/drivers/UART.h>
+#include <ti/drivers/uart/UARTCC26XX.h>
+
+//#include <Task.h>
+
+//static char uartTaskStack[512];
+//static Task_Struct uartTask;
 /*******************************************************************************
  * MACROS
  */
@@ -138,6 +146,41 @@ extern void AssertHandler(uint8 assertCause, uint8 assertSubcause);
 
 extern Display_Handle dispHandle;
 
+/*
+static void uartTaskFxn(UArg a0, UArg a1)
+{
+
+    char input;
+    UART_Handle uart;
+    UART_Params uartParams;
+    const char echoPrompt[] = "\fEchoing characters:\r\n";
+
+    /// Create a UART with data processing off.
+    UART_Params_init(&uartParams);
+    uartParams.writeDataMode = UART_DATA_BINARY;
+//    uartParams.readDataMode = UART_DATA_BINARY;
+//    uartParams.readReturnMode = UART_RETURN_FULL;
+//    uartParams.readEcho = UART_ECHO_OFF;
+    uartParams.baudRate = 115200;
+    uart = UART_open(CC2640R2_SABLEXR2_UART0, &uartParams);
+
+    if (uart == NULL) {
+        //System_abort("Error opening the UART");
+    }
+
+    UART_write(uart, echoPrompt, sizeof(echoPrompt));
+
+    //* Task Loop forever echoing
+ //   while (1) {
+ //       UART_read(uart, &input, 1);
+
+ //       UART_write(uart, &input, 1);
+        // Put out a second time, so easy to verify on scope
+ //       UART_write(uart, &input, 1);
+ //   }
+}
+
+*/
 /*******************************************************************************
  * @fn          Main
  *
@@ -165,6 +208,22 @@ int main()
 
   PIN_init(BoardGpioInitTable);
 
+/*
+  // Enable System_printf(..) UART output
+  UART_Handle handle;
+  UART_Params uartParams;
+  uint8_t txBuf[] = "Hello World";    // Transmit buffer
+
+  UART_Params_init(&uartParams);
+  uartParams.baudRate = 115200;
+  UART_init();
+  //UartPrintf_init(UART_open(CC2640R2_SABLEXR2_UART0, &uartParams));
+  handle = UART_open(CC2640R2_SABLEXR2_UART0, &uartParams);
+
+  //UART_write(handle, txBuf, sizeof(txBuf));
+  //System_printf("Hello, universe!\r\n");
+
+*/
 #ifdef CC1350_LAUNCHXL
   // Enable 2.4GHz Radio
   radCtrlHandle = PIN_open(&radCtrlState, radCtrlCfg);
@@ -216,6 +275,14 @@ int main()
 
   Movedetector_createTask();
 
+  /*
+  Task_Params tp;
+  Task_Params_init(&tp);
+  tp.stack      = uartTaskStack;
+  tp.stackSize  = sizeof(uartTaskStack);
+  tp.priority   = 1;
+  Task_construct(&uartTask, uartTaskFxn, &tp, NULL);
+*/
   /* enable interrupts and start SYS/BIOS */
   BIOS_start();
 

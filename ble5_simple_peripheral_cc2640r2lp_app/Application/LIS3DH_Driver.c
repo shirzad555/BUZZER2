@@ -11,6 +11,8 @@
 //#include "SPI.h"
 #include <ti/drivers/SPI.h>
 
+#include "Hwi.h"
+
 //#include <ti/sysbios/family/arm/cc26xx/Power.h>
 //#include <ti/sysbios/knl/Task.h>
 //#include <ti/drivers/spi/SPICC26XXDMA.h>
@@ -89,7 +91,7 @@ bool LIS3DH_VerifyCommunication(void)
 
     bResult = LIS3DH_StartTransfer(2, &uCommand, rxBuf, &arg);
     if (!bResult) return false;
-    if (rxBuf[0] != 0x33) return false; // 0x33 is the expected respond from LIS3DH for WHO_AM_I
+    if (rxBuf[1] != 0x33) return false; // 0x33 is the expected respond from LIS3DH for WHO_AM_I
 
     return true;
 }
@@ -100,13 +102,13 @@ void sbp_spiCallback(SPI_Handle handle, SPI_Transaction * transaction)
     uint8_t key;
 
     // may want to disable the interrupt first
-//    key = Hwi_disable(); //TODO
+    key = Hwi_disable();
     PINCC26XX_setOutputValue(Board_SPI0_CSN, 1);
-    if (*args == 0xAB ) PINCC26XX_setOutputValue(Board_BLED, 1);
+    //if (*args == 0xAB ) PINCC26XX_setOutputValue(Board_BLED, 1);
     if(transaction->status == SPI_TRANSFER_COMPLETED){
         // do something here for successful transaction...
     }
-//    Hwi_restore(key); //TODO
+    Hwi_restore(key); //TODO
 }
 
 bool LIS3DH_SetDeviceMode(LIS3DH_OperatingMode_t operatingMode, LIS3DH_DataRate_t dataRate, LIS3DH_FullScaleSelection_t fullScaleSelection)

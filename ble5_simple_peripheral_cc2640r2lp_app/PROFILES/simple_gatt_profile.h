@@ -95,9 +95,11 @@ extern "C"
 
 // Key Pressed UUID
 #define MOVEDETECTOR_CHAR1_UUID            0xBB01 // This is for LED #define SIMPLEPROFILE_CHAR1_UUID            0xBB01 // Original: 0xFFF1
-#define MOVEDETECTOR_CHAR2_UUID            0xBB02 //#define SIMPLEPROFILE_CHAR2_UUID            0xBB02 // and so on
+#define MOVEDETECTOR_CHAR2_UUID            0xBB02 //Alarm Value #define SIMPLEPROFILE_CHAR2_UUID            0xBB02 // and so on
 #define MOVEDETECTOR_CHAR3_UUID            0xBB03 // This is for Alarm setting
 
+
+#define GATT_TI_UUID_128_BIT
 
 /*********************************************************************
  * TYPEDEFS
