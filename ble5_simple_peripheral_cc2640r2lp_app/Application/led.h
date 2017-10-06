@@ -27,6 +27,7 @@ enum LED_State {
 void Led_init(void);
 void Toggle_led(void);
 //void Led_Flash(LED_State flash_type);
+void BuzzerOnOff(bool state);
 
 
 #endif /* APPLICATION_LED_H_ */

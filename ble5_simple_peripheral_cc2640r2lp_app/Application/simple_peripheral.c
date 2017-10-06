@@ -808,7 +808,7 @@ static void Movedetector_init(void)
 
   if (!LIS3DH_Initialize())
   {
-      PINCC26XX_setOutputValue(Board_BLED, 0);
+      //PINCC26XX_setOutputValue(Board_BLED, 0);
       while(1);
       //tempMem = 1;
   }
@@ -1158,10 +1158,11 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
           ledBlinkCount--;
           Util_startClock(&ledBlinkClock);  // start the next clock, this will continue until the led blink counter is zero
      //     Log_print0(Diags_USER1, "Toggling led\r\n");
-          Toggle_led();
+     //     Toggle_led();
+          BuzzerOnOff(true);
           valueForTest++;
           Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t), &valueForTest);
-          PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
+          //PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
       }
       if (events & MDP_SENSOR_MOVE_EVT)
       {
@@ -1667,6 +1668,7 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
       RPrintf("GAPROLE_WAITING\r\n");
 
       //Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Disconnected");
+      BuzzerOnOff(false);
 
 #if !defined(Display_DISABLE_ALL)
       // Disable PHY change
@@ -1822,7 +1824,7 @@ static void Movedetector_performPeriodicTask(void)
   if(1) //(tempMem == 1)
   {
       RPrintf("Hola Hola Hola Hola\r\n");
-      //Toggle_led();
+      Toggle_led();
   }
   if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
   {
@@ -2072,11 +2074,11 @@ static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys)
     uint8_t temp;
 
     RPrintf("Testing for sure!!!\r\n");
-    PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
+    //PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
 
 if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
 {
-  PINCC26XX_setOutputValue(Board_BLED, LED_ON);
+  //PINCC26XX_setOutputValue(Board_BLED, LED_ON);
 //  Log_print0(Diags_USER1, "**\r\n");
 
     filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
@@ -2198,9 +2200,9 @@ static void CheckForAlarm(void)
 
     if (maxDiff > ALARM_MOVEMENT_THRESHOLD)
     {
-        bVal = PINCC26XX_getOutputValue(Board_GLED);
-        PINCC26XX_setOutputValue(Board_GLED, !bVal);
-        //PINCC26XX_setOutputValue(BOARD_LED1, LED_ON);
+        //bVal = PINCC26XX_getOutputValue(Board_GLED);
+        //PINCC26XX_setOutputValue(Board_GLED, !bVal);
+        ////PINCC26XX_setOutputValue(BOARD_LED1, LED_ON);
     }
 
     filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
