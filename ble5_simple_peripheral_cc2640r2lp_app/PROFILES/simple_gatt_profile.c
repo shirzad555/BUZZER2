@@ -66,7 +66,7 @@
  * CONSTANTS
  */
 
-#define SERVAPP_NUM_ATTR_SUPPORTED        17
+#define SERVAPP_NUM_ATTR_SUPPORTED        14 //11 //17
 
 /*********************************************************************
  * TYPEDEFS
@@ -120,18 +120,24 @@ CONST uint8 movedetectorServUUID[ATT_UUID_SIZE] =
 // Characteristic 1 UUID: 0xBB01
 CONST uint8 movedetectorchar1UUID[ATT_UUID_SIZE] =
 {
-    TI_BASE_UUID_128(MOVEDETECTOR_CHAR1_UUID),
+    TI_BASE_UUID_128(MD_CHAR_LED_STATE_UUID),
 };
 // Characteristic 2 UUID: 0xBB02
 CONST uint8 movedetectorchar2UUID[ATT_UUID_SIZE] =
 {
-    TI_BASE_UUID_128(MOVEDETECTOR_CHAR2_UUID),
+    TI_BASE_UUID_128(MD_CHAR_ALARM_SENS_UUID),
 };
 
 // Characteristic 3 UUID: 0xBB03
 CONST uint8 movedetectorchar3UUID[ATT_UUID_SIZE] =
 {
-    TI_BASE_UUID_128(MOVEDETECTOR_CHAR3_UUID),
+    TI_BASE_UUID_128(MD_CHAR_ALARM_STATE_UUID),
+};
+
+// Characteristic 3 UUID: 0xBB03
+CONST uint8 movedetectorchar4UUID[ATT_UUID_SIZE] =
+{
+    TI_BASE_UUID_128(MD_CHAR_MVMNT_MSG_UUID),
 };
 
 /*********************************************************************
@@ -229,7 +235,7 @@ static uint8 movedetectorChar1 = 0;
 static uint8 movedetectorChar1UserDesp[10] = "LED CTRL\0";
 
 // MoveDetector Service Characteristic 2 Properties
-static uint8 movedetectorChar2Props = GATT_PROP_NOTIFY;
+static uint8 movedetectorChar2Props = GATT_PROP_READ | GATT_PROP_WRITE; // GATT_PROP_NOTIFY
 
 // Characteristic 2 Value
 static uint8 movedetectorChar2 = 22;
@@ -238,7 +244,7 @@ static uint8 movedetectorChar2 = 22;
 static gattCharCfg_t *movedetectorChar2Config;
 
 // MoveDetector Service Characteristic 2 User Description
-static uint8 movedetectorChar2UserDesp[14] = "Value Notify\0";
+static uint8 movedetectorChar2UserDesp[18] = "Alarm Sensitivity\0";
 
 // MoveDetector Service Characteristic 3 Properties
 static uint8 movedetectorChar3Props = GATT_PROP_READ | GATT_PROP_WRITE;
@@ -247,7 +253,17 @@ static uint8 movedetectorChar3Props = GATT_PROP_READ | GATT_PROP_WRITE;
 static uint8 movedetectorChar3 = 0;
 
 // MoveDetector Service Characteristic 1 User Description
-static uint8 movedetectorChar3UserDesp[14] = "Sensor Value\0";
+static uint8 movedetectorChar3UserDesp[13] = "Alarm State\0";
+
+
+// MoveDetector Service Characteristic 1 Properties
+static uint8 movedetectorChar4Props = GATT_PROP_READ | GATT_PROP_WRITE;
+
+// Characteristic 1 Value
+static uint8 movedetectorChar4 = 0;
+
+// MoveDetector Service Characteristic 1 User Description
+static uint8 movedetectorChar4UserDesp[14] = "Movement Msg\0";
 
 /*********************************************************************
  * Profile Attributes - Table
@@ -342,6 +358,31 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     0,
     movedetectorChar3UserDesp
   },
+
+  // Characteristic 4 Declaration
+  {
+    { ATT_BT_UUID_SIZE, characterUUID },
+    GATT_PERMIT_READ,
+    0,
+    &movedetectorChar4Props
+  },
+
+  // Characteristic Value 4, this is a custom uuid
+  {
+    { ATT_UUID_SIZE, movedetectorchar4UUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+    0,
+    &movedetectorChar4
+  },
+
+  // Characteristic 4 User Description
+  {
+    { ATT_BT_UUID_SIZE, charUserDescUUID },
+    GATT_PERMIT_READ,
+    0,
+    movedetectorChar4UserDesp
+  },
+
 };
 /*
 static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
@@ -351,9 +392,9 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 
 // //   { ATT_BT_UUID_SIZE, primaryServiceUUID },
 
-//    GATT_PERMIT_READ,                         /* permissions */
-//    0,                                        /* handle */
-//    (uint8 *)&simpleProfileService            /* pValue */
+//    GATT_PERMIT_READ,                         ///* permissions */
+//    0,                                        ///* handle */
+//    (uint8 *)&simpleProfileService           // /* pValue */
 /*  },
 
     // Characteristic 1 Declaration
@@ -725,7 +766,7 @@ bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
  bStatus_t ret = SUCCESS;
  switch ( param )
  {
-   case MOVEDETECTOR_CHAR1:
+   case MD_CHAR_LED_STATE:
      if ( len == sizeof ( uint8 ) )
      {
        movedetectorChar1 = *((uint8*)value);
@@ -736,7 +777,7 @@ bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
      }
      break;
 
-   case MOVEDETECTOR_CHAR2:
+   case MD_CHAR_ALARM_SENSITIVITY:
      if ( len == sizeof ( uint8 ) )
      {
        movedetectorChar2 = *((uint8*)value);
@@ -798,11 +839,11 @@ bStatus_t  Movedetector_GetParameter( uint8 param, void *value )
   bStatus_t ret = SUCCESS;
   switch ( param )
   {
-    case MOVEDETECTOR_CHAR1:
+    case MD_CHAR_LED_STATE:
       *((uint8*)value) = movedetectorChar1;
       break;
 
-    case MOVEDETECTOR_CHAR2:
+    case MD_CHAR_ALARM_SENSITIVITY:
       *((uint8*)value) = movedetectorChar2;
       break;
 
@@ -925,18 +966,18 @@ static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
     // characteristics 1 has read permissions
     // characteristic 2 does not have read permissions, but because it
     //   can be sent as a notification, it is included here
-  case MOVEDETECTOR_CHAR1_UUID:
-      if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
+  case MD_CHAR_LED_STATE_UUID:
+      if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
       {
           *pLen = 1;
           pValue[0] = valueToCopy;
       }
     break;
-  case MOVEDETECTOR_CHAR2_UUID:
+  case MD_CHAR_ALARM_SENS_UUID:
     *pLen = 1;
     pValue[0] = *pAttr->pValue;
     break;
-  case MOVEDETECTOR_CHAR3_UUID:
+  case MD_CHAR_ALARM_STATE_UUID:
      valueToCopy = Alarm_GetSetting();
     *pLen = 1;
     pValue[0] = valueToCopy;
@@ -1066,7 +1107,7 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
   // uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
   switch ( uuid )
   {
-  case MOVEDETECTOR_CHAR1_UUID:
+  case MD_CHAR_LED_STATE_UUID:
     //Validate the value
     // Make sure it's not a blob oper
     if ( offset == 0 )
@@ -1090,8 +1131,8 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
       };
       VOID osal_snv_write(MAJOR_ID, MAJOR_LEN, &major);
 */
-      notifyApp = MOVEDETECTOR_CHAR1;
-      Movedetector_SetParameter( MOVEDETECTOR_CHAR1, sizeof(uint8_t), &major );
+      notifyApp = MD_CHAR_LED_STATE;
+      Movedetector_SetParameter( MD_CHAR_LED_STATE, sizeof(uint8_t), &major );
       /*VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR2_LEN );
       if( pAttr->pValue == simpleProfileChar2 )
       {
@@ -1100,7 +1141,7 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
     }
 
     break;
-  case MOVEDETECTOR_CHAR3_UUID:
+  case MD_CHAR_ALARM_STATE_UUID:
     //Validate the value
     // Make sure it's not a blob oper
     if ( offset == 0 )
@@ -1124,7 +1165,7 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
       };
       VOID osal_snv_write(MAJOR_ID, MAJOR_LEN, &major);
 */
-      notifyApp = MOVEDETECTOR_CHAR3;
+      notifyApp = MD_CHAR_ALARM_STATE;
       Alarm_SetSetting(major);
     }
 

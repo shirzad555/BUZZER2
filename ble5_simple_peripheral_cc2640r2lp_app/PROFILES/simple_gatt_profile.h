@@ -84,9 +84,10 @@ extern "C"
 // Length of Characteristic 5 in bytes
 #define SIMPLEPROFILE_CHAR5_LEN           5
 */
-#define MOVEDETECTOR_CHAR1                      0   //#define SIMPLEPROFILE_CHAR1                   0  // RW uint8 - Profile Characteristic 1 value
-#define MOVEDETECTOR_CHAR2                      1   //#define SIMPLEPROFILE_CHAR2                   1  // RW uint8 - Profile Characteristic 2 value
-#define MOVEDETECTOR_CHAR3                      2  // RW uint8 - Profile Characteristic 3 value
+#define MD_CHAR_LED_STATE                         0   //#define SIMPLEPROFILE_CHAR1                   0  // RW uint8 - Profile Characteristic 1 value
+#define MD_CHAR_ALARM_SENSITIVITY                 1   //#define SIMPLEPROFILE_CHAR2                   1  // RW uint8 - Profile Characteristic 2 value
+#define MD_CHAR_ALARM_STATE                       2  // RW uint8 - Profile Characteristic 3 value
+#define MD_CHAR_MVMNT_MSG                         3
 //#define SIMPLEPROFILE_CHAR4                   3  // RW uint8 - Profile Characteristic 4 value
 //#define SIMPLEPROFILE_CHAR5                   4  // RW uint8 - Profile Characteristic 4 value
 
@@ -94,9 +95,10 @@ extern "C"
 #define MOVEDETECTOR_SERV_UUID             0xBB00  //#define SIMPLEPROFILE_SERV_UUID             0xBB00 //TI_BASE_UUID_128 (0xAA00);// 0xAA00 // To match it with ZeroToBLE. Original: 0xFFF0
 
 // Key Pressed UUID
-#define MOVEDETECTOR_CHAR1_UUID            0xBB01 // This is for LED #define SIMPLEPROFILE_CHAR1_UUID            0xBB01 // Original: 0xFFF1
-#define MOVEDETECTOR_CHAR2_UUID            0xBB02 //Alarm Value #define SIMPLEPROFILE_CHAR2_UUID            0xBB02 // and so on
-#define MOVEDETECTOR_CHAR3_UUID            0xBB03 // This is for Alarm setting
+#define MD_CHAR_LED_STATE_UUID              0xBB01 // This is for LED #define SIMPLEPROFILE_CHAR1_UUID            0xBB01 // Original: 0xFFF1
+#define MD_CHAR_ALARM_SENS_UUID             0xBB02 //Alarm Value #define SIMPLEPROFILE_CHAR2_UUID            0xBB02 // and so on
+#define MD_CHAR_ALARM_STATE_UUID            0xBB03 // This is for Alarm setting
+#define MD_CHAR_MVMNT_MSG_UUID              0xBB04
 
 
 #define GATT_TI_UUID_128_BIT

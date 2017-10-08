@@ -826,7 +826,7 @@ static void Movedetector_init(void)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-  dispHandle = Display_open(SBP_DISPLAY_TYPE, NULL);
+  //dispHandle = Display_open(SBP_DISPLAY_TYPE, NULL);
 
   // Set GAP Parameters: After a connection was established, delay in seconds
   // before sending when GAPRole_SetParameter(GAPROLE_PARAM_UPDATE_ENABLE,...)
@@ -965,21 +965,21 @@ static void Movedetector_init(void)
                                &charValue4);
     SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN,
                                charValue5);*/
-      uint8_t charValue1 = 0;
-      uint8_t charValue2 = 23;
-      uint16_t charValue3 = 0;
-  //    uint8_t charValue4 = 4;
+      uint8_t charValue1 = LED_STATE_OFF;
+      uint8_t charValue2 = ALARM_SENS_LOWEST;
+      uint16_t charValue3 = ALARM_STATE_OFF;
+      uint8_t charValue4 = MOVEMENT_MSG_NONE;
   //    uint8_t charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
 
-      Movedetector_SetParameter(MOVEDETECTOR_CHAR1, sizeof(uint8_t),
+      Movedetector_SetParameter(MD_CHAR_LED_STATE, sizeof(uint8_t),
                                  &charValue1);
-      Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t),
+      Movedetector_SetParameter(MD_CHAR_ALARM_SENSITIVITY, sizeof(uint8_t),
                                  &charValue2);
-      Movedetector_SetParameter(MOVEDETECTOR_CHAR3, sizeof(uint16_t),
+      Movedetector_SetParameter(MD_CHAR_ALARM_STATE, sizeof(uint16_t),
                                  &charValue3);
-  /*    Movedetector_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t),
+      Movedetector_SetParameter(MD_CHAR_MVMNT_MSG, sizeof(uint8_t),
                                  &charValue4);
-      Movedetector_SetParameter(SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN,
+      /*     Movedetector_SetParameter(SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN,
                                  charValue5);
                                  */
   }
@@ -1161,7 +1161,7 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
      //     Toggle_led();
           BuzzerOnOff(true);
           valueForTest++;
-          Movedetector_SetParameter(MOVEDETECTOR_CHAR2, sizeof(uint8_t), &valueForTest);
+          Movedetector_SetParameter(MD_CHAR_ALARM_SENSITIVITY, sizeof(uint8_t), &valueForTest);
           //PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
       }
       if (events & MDP_SENSOR_MOVE_EVT)
@@ -1742,8 +1742,8 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 
   switch(paramID)
   {
-    case MOVEDETECTOR_CHAR1: //SIMPLEPROFILE_CHAR1:
-      Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &newValue);
+    case MD_CHAR_LED_STATE: //SIMPLEPROFILE_CHAR1:
+      Movedetector_GetParameter(MD_CHAR_LED_STATE, &newValue);
 //      Log_print1(Diags_USER1, "CharValueChangeEvt 1 = %d\r\n", &newValue);
 
       switch(newValue)
@@ -1774,15 +1774,15 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 //      LCD_WRITE_STRING_VALUE("Char 1:", (uint16_t)newValue, 10, LCD_PAGE4);
       break;
 
-    case MOVEDETECTOR_CHAR2: //SIMPLEPROFILE_CHAR3:
+    case MD_CHAR_ALARM_SENSITIVITY: //SIMPLEPROFILE_CHAR3:
       //SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
-      Movedetector_GetParameter(MOVEDETECTOR_CHAR2, &newValue);
+      Movedetector_GetParameter(MD_CHAR_ALARM_SENSITIVITY, &newValue);
 //      Log_print1(Diags_USER1, "CharValueChangeEvt 2 = %d\r\n", &newValue);
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 2\r\n");
 //      LCD_WRITE_STRING_VALUE("Char 3:", (uint16_t)newValue, 10, LCD_PAGE4);
       break;
 
-    case MOVEDETECTOR_CHAR3:
+    case MD_CHAR_ALARM_STATE:
       Start_Alarm();
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
       break;
@@ -1826,7 +1826,7 @@ static void Movedetector_performPeriodicTask(void)
       RPrintf("Hola Hola Hola Hola\r\n");
       Toggle_led();
   }
-  if (Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &valueToCopy) == SUCCESS)
+  if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
   {
     // Call to set that value of the fourth characteristic in the profile.
     // Note that if notifications of the fourth characteristic have been
