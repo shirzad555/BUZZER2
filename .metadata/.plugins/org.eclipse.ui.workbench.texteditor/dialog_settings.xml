@@ -2,20 +2,20 @@
 <section name="Workbench">
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
 		<item value="false" key="isRegEx"/>
-		<item value="periodic" key="selection"/>
+		<item value="movedetectorChar1" key="selection"/>
 		<item value="true" key="casesensitive"/>
 		<item value="false" key="incremental"/>
 		<item value="true" key="wrap"/>
 		<item value="false" key="wholeword"/>
 		<list key="findhistory">
-			<item value="periodic"/>
-			<item value="TL_AppCBs"/>
-			<item value="TL_handleISRevent"/>
-			<item value="TRANSPORT_TX_DONE_EVENT"/>
-			<item value="TX_DONE_ISR_EVENT_FLAG"/>
-			<item value="Event.h"/>
-			<item value="transport_rx_event"/>
-			<item value="appSem"/>
+			<item value="movedetectorChar1"/>
+			<item value="GetParameter"/>
+			<item value="shirzad"/>
+			<item value="Movedetector_AddService"/>
+			<item value="flash"/>
+			<item value="movedetectorchar4UUID"/>
+			<item value="SERVAPP_NUM_ATTR_SUPPORTED"/>
+			<item value="movedetectorChar4UserDesp"/>
 		</list>
 		<list key="replacehistory">
 			<item value="Movedetector_"/>

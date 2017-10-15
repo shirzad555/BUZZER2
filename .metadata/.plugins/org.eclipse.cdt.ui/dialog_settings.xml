@@ -17,6 +17,30 @@
 		<item value="false" key="caseSensitive"/>
 		<item value="227191" key="searchFlags"/>
 		<list key="previousPatterns">
+			<item value="movedetectorChar1"/>
+			<item value="Movedetector_SetParameter"/>
+			<item value="Movedetector_GetParameter"/>
+			<item value="0x180A"/>
+			<item value="0x2A24"/>
+			<item value="DevInfo_AddService"/>
+			<item value="GATT_AddService"/>
+			<item value="Movedetector_AddService"/>
+			<item value="LED_State"/>
+			<item value="GATT_NUM_ATTRS"/>
+			<item value="movedetectorAttrTbl"/>
+			<item value="17"/>
+			<item value="SERVAPP_NUM_ATTR_SUPPORTED"/>
+			<item value="movedetectorchar1UUID"/>
+			<item value="MD_CHAR_LED_STATE_UUID"/>
+			<item value="MD_CHAR_LED_STATE"/>
+			<item value="MOVEDETECTOR_CHAR3_UUID"/>
+			<item value="MOVEDETECTOR_CHAR2_UUID"/>
+			<item value="MOVEDETECTOR_CHAR1_UUID"/>
+			<item value="MOVEDETECTOR_CHAR3"/>
+			<item value="MOVEDETECTOR_CHAR2"/>
+			<item value="MOVEDETECTOR_CHAR1"/>
+			<item value="IOID_4"/>
+			<item value="IOID_3"/>
 			<item value="sem"/>
 			<item value="NPI_MAX_FRAG_SIZE"/>
 			<item value="_post"/>

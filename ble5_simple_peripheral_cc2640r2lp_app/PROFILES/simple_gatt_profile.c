@@ -66,7 +66,7 @@
  * CONSTANTS
  */
 
-#define SERVAPP_NUM_ATTR_SUPPORTED        14 //11 //17
+#define SERVAPP_NUM_ATTR_SUPPORTED        13 //14 //11 //17
 
 /*********************************************************************
  * TYPEDEFS
@@ -229,7 +229,7 @@ static CONST gattAttrType_t movedetectorService = { ATT_UUID_SIZE, movedetectorS
 static uint8 movedetectorChar1Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 1 Value
-static uint8 movedetectorChar1 = 0;
+static uint8 ledCharValue = 0;
 
 // MoveDetector Service Characteristic 1 User Description
 static uint8 movedetectorChar1UserDesp[10] = "LED CTRL\0";
@@ -238,10 +238,10 @@ static uint8 movedetectorChar1UserDesp[10] = "LED CTRL\0";
 static uint8 movedetectorChar2Props = GATT_PROP_READ | GATT_PROP_WRITE; // GATT_PROP_NOTIFY
 
 // Characteristic 2 Value
-static uint8 movedetectorChar2 = 22;
+static uint8 alarmSensitivityCharValue = 22;
 
 // MoveDetector Service Characteristic 2 Configuration.
-static gattCharCfg_t *movedetectorChar2Config;
+//static gattCharCfg_t *movedetectorChar2Config;
 
 // MoveDetector Service Characteristic 2 User Description
 static uint8 movedetectorChar2UserDesp[18] = "Alarm Sensitivity\0";
@@ -249,20 +249,20 @@ static uint8 movedetectorChar2UserDesp[18] = "Alarm Sensitivity\0";
 // MoveDetector Service Characteristic 3 Properties
 static uint8 movedetectorChar3Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
-// Characteristic 1 Value
-static uint8 movedetectorChar3 = 0;
+// Characteristic 3 Value
+static uint8 alarmStateCharValue = 0;
 
-// MoveDetector Service Characteristic 1 User Description
+// MoveDetector Service Characteristic 3 User Description
 static uint8 movedetectorChar3UserDesp[13] = "Alarm State\0";
 
 
-// MoveDetector Service Characteristic 1 Properties
+// MoveDetector Service Characteristic 4 Properties
 static uint8 movedetectorChar4Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
-// Characteristic 1 Value
-static uint8 movedetectorChar4 = 0;
+// Characteristic 4 Value
+static uint8 alarmMessageCharValue = 0;
 
-// MoveDetector Service Characteristic 1 User Description
+// MoveDetector Service Characteristic 4 User Description
 static uint8 movedetectorChar4UserDesp[14] = "Movement Msg\0";
 
 /*********************************************************************
@@ -291,7 +291,7 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     { ATT_UUID_SIZE, movedetectorchar1UUID },
     GATT_PERMIT_READ | GATT_PERMIT_WRITE,
     0,
-    &movedetectorChar1
+    &ledCharValue
   },
 
   // Characteristic 1 User Description
@@ -314,11 +314,12 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
   // Characteristic Value 2
   {
     { ATT_UUID_SIZE, movedetectorchar2UUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
     0,
-    0,
-    &movedetectorChar2
+    &alarmSensitivityCharValue
   },
 
+/*
   // Characteristic 2 configuration
   {
     { ATT_BT_UUID_SIZE, clientCharCfgUUID },
@@ -326,7 +327,7 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     0,
     (uint8 *)&movedetectorChar2Config
   },
-
+*/
   // Characteristic 2 User Description
   {
     { ATT_BT_UUID_SIZE, charUserDescUUID },
@@ -348,7 +349,7 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     { ATT_UUID_SIZE, movedetectorchar3UUID },
     GATT_PERMIT_READ | GATT_PERMIT_WRITE,
     0,
-    &movedetectorChar3
+    &alarmStateCharValue
   },
 
   // Characteristic 3 User Description
@@ -372,7 +373,7 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     { ATT_UUID_SIZE, movedetectorchar4UUID },
     GATT_PERMIT_READ | GATT_PERMIT_WRITE,
     0,
-    &movedetectorChar4
+    &alarmMessageCharValue
   },
 
   // Characteristic 4 User Description
@@ -652,15 +653,15 @@ bStatus_t Movedetector_AddService( uint32 services )
   uint8 status;
 
   // Allocate Client Characteristic Configuration table
-  movedetectorChar2Config = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) *
-                                                            linkDBNumConns );
-  if ( movedetectorChar2Config == NULL )
-  {
-    return ( bleMemAllocError );
-  }
+//  movedetectorChar2Config = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) *
+//                                                            linkDBNumConns );
+//  if ( movedetectorChar2Config == NULL )
+//  {
+//    return ( bleMemAllocError );
+//  }
 
   // Initialize Client Characteristic Configuration attributes
-  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, movedetectorChar2Config );
+//  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, movedetectorChar2Config );
 
   // Register GATT attribute list and CBs with GATT Server App
   status = GATTServApp_RegisterService( movedetectorAttrTbl,
@@ -769,7 +770,7 @@ bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
    case MD_CHAR_LED_STATE:
      if ( len == sizeof ( uint8 ) )
      {
-       movedetectorChar1 = *((uint8*)value);
+         ledCharValue = *((uint8*)value);
      }
      else
      {
@@ -780,12 +781,34 @@ bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
    case MD_CHAR_ALARM_SENSITIVITY:
      if ( len == sizeof ( uint8 ) )
      {
-       movedetectorChar2 = *((uint8*)value);
+         alarmSensitivityCharValue = *((uint8*)value);
 
        // See if Notification has been enabled
-       GATTServApp_ProcessCharCfg( movedetectorChar2Config, &movedetectorChar2, FALSE,
-                                   movedetectorAttrTbl, GATT_NUM_ATTRS( movedetectorAttrTbl ),
-                                   INVALID_TASK_ID, movedetector_ReadAttrCB );
+//       GATTServApp_ProcessCharCfg( movedetectorChar2Config, &movedetectorChar2, FALSE,
+//                                   movedetectorAttrTbl, GATT_NUM_ATTRS( movedetectorAttrTbl ),
+//                                   INVALID_TASK_ID, movedetector_ReadAttrCB );
+     }
+     else
+     {
+       ret = bleInvalidRange;
+     }
+     break;
+
+   case MD_CHAR_ALARM_STATE:
+     if ( len == sizeof ( uint8 ) )
+     {
+         alarmStateCharValue = *((uint8*)value);
+     }
+     else
+     {
+       ret = bleInvalidRange;
+     }
+     break;
+
+   case MD_CHAR_MVMNT_MSG:
+     if ( len == sizeof ( uint8 ) )
+     {
+         alarmMessageCharValue = *((uint8*)value);
      }
      else
      {
@@ -840,11 +863,19 @@ bStatus_t  Movedetector_GetParameter( uint8 param, void *value )
   switch ( param )
   {
     case MD_CHAR_LED_STATE:
-      *((uint8*)value) = movedetectorChar1;
+      *((uint8*)value) = 101; //ledCharValue;
       break;
 
     case MD_CHAR_ALARM_SENSITIVITY:
-      *((uint8*)value) = movedetectorChar2;
+      *((uint8*)value) = 105; //alarmSensitivityCharValue;
+      break;
+
+    case MD_CHAR_ALARM_STATE:
+      *((uint8*)value) = 111; //alarmStateCharValue;
+      break;
+
+    case MD_CHAR_MVMNT_MSG:
+      *((uint8*)value) = 115; //alarmMessageCharValue;
       break;
 
     default:
@@ -926,6 +957,9 @@ bStatus_t  Movedetector_GetParameter( uint8 param, void *value )
   return ( status );
 }
 */
+
+
+////////////////////// this is called when phone requests for reading data ///////////////////////////////
 static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
                                           gattAttribute_t *pAttr,
                                           uint8_t *pValue, uint16_t *pLen,
@@ -974,14 +1008,31 @@ static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
       }
     break;
   case MD_CHAR_ALARM_SENS_UUID:
-    *pLen = 1;
-    pValue[0] = *pAttr->pValue;
+      if (Movedetector_GetParameter(MD_CHAR_ALARM_SENSITIVITY, &valueToCopy) == SUCCESS)
+      {
+          *pLen = 1;
+          pValue[0] = valueToCopy;
+      }
+//    *pLen = 1;
+//    pValue[0] = 1; //*pAttr->pValue;
     break;
   case MD_CHAR_ALARM_STATE_UUID:
-     valueToCopy = Alarm_GetSetting();
-    *pLen = 1;
-    pValue[0] = valueToCopy;
+     //valueToCopy = Alarm_GetSetting();
+      if (Movedetector_GetParameter(MD_CHAR_ALARM_STATE, &valueToCopy) == SUCCESS)
+      {
+          *pLen = 1;
+          pValue[0] = valueToCopy;
+      }
     break;
+  case MD_CHAR_MVMNT_MSG_UUID:
+     //valueToCopy = Alarm_GetSetting();
+      if (Movedetector_GetParameter(MD_CHAR_MVMNT_MSG, &valueToCopy) == SUCCESS)
+      {
+          *pLen = 1;
+          pValue[0] = valueToCopy;
+      }
+    break;
+
 
   default:
     // Should never get here! (characteristics 3 and 4 do not have read permissions)
@@ -1080,6 +1131,8 @@ static bStatus_t movedetector_ReadAttrCB(uint16_t connHandle,
   return ( status );
 }
 */
+
+//////////////// This is called when phone wants to write data (send data to you), you use notify to know when this happens /////////////////////////////////////
 static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
                                            gattAttribute_t *pAttr,
                                            uint8_t *pValue, uint16_t len,
@@ -1141,6 +1194,32 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
     }
 
     break;
+
+  case MD_CHAR_ALARM_SENS_UUID:
+    //Validate the value
+    // Make sure it's not a blob oper
+    if ( offset == 0 )
+    {
+      if ( len != 1 )
+      {
+        status = ATT_ERR_INVALID_VALUE_SIZE;
+      }
+    }
+    else
+    {
+      status = ATT_ERR_ATTR_NOT_LONG;
+    }
+    //Write the value
+    if ( status == SUCCESS )
+    {
+        uint8 major = pValue[0];
+     // notifyApp = MD_CHAR_LED_STATE;
+    //  Movedetector_SetParameter( MD_CHAR_LED_STATE, sizeof(uint8_t), &major );
+
+    }
+
+    break;
+
   case MD_CHAR_ALARM_STATE_UUID:
     //Validate the value
     // Make sure it's not a blob oper
@@ -1166,7 +1245,34 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
       VOID osal_snv_write(MAJOR_ID, MAJOR_LEN, &major);
 */
       notifyApp = MD_CHAR_ALARM_STATE;
-      Alarm_SetSetting(major);
+      Movedetector_SetParameter( MD_CHAR_ALARM_STATE, sizeof(uint8_t), &major );
+      ////Alarm_SetSetting(major);
+    }
+
+    break;
+
+  case MD_CHAR_MVMNT_MSG_UUID:
+    //Validate the value
+    // Make sure it's not a blob oper
+    if ( offset == 0 )
+    {
+      if ( len != 1 )
+      {
+        status = ATT_ERR_INVALID_VALUE_SIZE;
+      }
+    }
+    else
+    {
+      status = ATT_ERR_ATTR_NOT_LONG;
+    }
+    //Write the value
+    if ( status == SUCCESS )
+    {
+      uint8 major = pValue[0];
+
+     // notifyApp = MD_CHAR_MVMNT_MSG;
+     // Movedetector_SetParameter( MD_CHAR_MVMNT_MSG, sizeof(uint8_t), &major );
+
     }
 
     break;

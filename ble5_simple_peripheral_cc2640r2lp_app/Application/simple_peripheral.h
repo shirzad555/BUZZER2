@@ -53,6 +53,8 @@ extern "C"
 {
 #endif
 
+#define Display_DISABLE_ALL
+
 /*********************************************************************
  * INCLUDES
  */

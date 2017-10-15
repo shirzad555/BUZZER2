@@ -25,10 +25,10 @@ MENU_OBJ_END
   #else // !PHY_LR_CFG
 /* Menu: Main
      3 actions, no upper */
-MENU_OBJ(sbpMenuMain, NULL, 3, NULL)
-  MENU_ITEM_ACTION("1 Mbps",              Movedetector_doSetPhy)
-  MENU_ITEM_ACTION("2 Mbps",              Movedetector_doSetPhy)
-  MENU_ITEM_ACTION("1 & 2 Mbps",          Movedetector_doSetPhy)
-MENU_OBJ_END
+//MENU_OBJ(sbpMenuMain, NULL, 3, NULL)
+//  MENU_ITEM_ACTION("1 Mbps",              Movedetector_doSetPhy)
+//  MENU_ITEM_ACTION("2 Mbps",              Movedetector_doSetPhy)
+//  MENU_ITEM_ACTION("1 & 2 Mbps",          Movedetector_doSetPhy)
+//MENU_OBJ_END
   #endif // PHY_LR_CFG
 #endif  // !Display_DISABLE_ALL

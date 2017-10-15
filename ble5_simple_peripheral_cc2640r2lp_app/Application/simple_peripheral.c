@@ -87,9 +87,9 @@
 
 #if !defined(Display_DISABLE_ALL)
 #include "board_key.h"
-#include <menu/two_btn_menu.h>
+//#include <menu/two_btn_menu.h>
 
-#include "simple_peripheral_menu.h"
+//#include "simple_peripheral_menu.h"
 #endif  // !Display_DISABLE_ALL
 
 #include "simple_peripheral.h"
@@ -821,7 +821,7 @@ static void Movedetector_init(void)
   LIS3DH_Interrupt1Duration(2);// you can add duration here too
   LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
   LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
-  RPrintf("8\r\n");
+  RPrintf(" LIS3DH is Good!\r\n");
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1306,18 +1306,17 @@ static uint8_t Movedetector_processStackMsg(ICall_Hdr *pMsg)
               {
                 if (pPUC->status != SUCCESS)
                 {
-                  Display_print0(dispHandle, SBP_ROW_STATUS_1, 0,
-                                 "PHY Change failure");
+                  //Display_print0(dispHandle, SBP_ROW_STATUS_1, 0,                                 "PHY Change failure");
                 }
                 else
                 {
-                  Display_print0(dispHandle, SBP_ROW_STATUS_1, 0,
-                                 "PHY Update Complete");
+                 // Display_print0(dispHandle, SBP_ROW_STATUS_1, 0,
+                 //                "PHY Update Complete");
                   // Only symmetrical PHY is supported.
                   // rxPhy should be equal to txPhy.
-                  Display_print1(dispHandle, SBP_ROW_STATUS_2, 0,
-                                 "Current PHY: %s",
-                                 (pPUC->rxPhy == HCI_PHY_1_MBPS) ? "1 Mbps" :
+                 // Display_print1(dispHandle, SBP_ROW_STATUS_2, 0,
+                  //               "Current PHY: %s",
+                  //               (pPUC->rxPhy == HCI_PHY_1_MBPS) ? "1 Mbps" :
 
 // Note: BLE_V50_FEATURES is always defined and long range phy (PHY_LR_CFG) is
 //       defined in build_config.opt
@@ -1325,7 +1324,7 @@ static uint8_t Movedetector_processStackMsg(ICall_Hdr *pMsg)
                                    ((pPUC->rxPhy == HCI_PHY_2_MBPS) ? "2 Mbps" :
                                        "Coded:S2"));
 #else  // !PHY_LR_CFG
-                                   "2 Mbps");
+ //                                  "2 Mbps");
 #endif // PHY_LR_CFG
                 }
               }
@@ -1381,12 +1380,12 @@ static uint8_t Movedetector_processGATTMsg(gattMsgEvent_t *pMsg)
     // The app is informed in case it wants to drop the connection.
 
     // Display the opcode of the message that caused the violation.
-    Display_print1(dispHandle, SBP_ROW_RESULT, 0, "FC Violated: %d", pMsg->msg.flowCtrlEvt.opcode);
+    //Display_print1(dispHandle, SBP_ROW_RESULT, 0, "FC Violated: %d", pMsg->msg.flowCtrlEvt.opcode);
   }
   else if (pMsg->method == ATT_MTU_UPDATED_EVENT)
   {
     // MTU size updated
-    Display_print1(dispHandle, SBP_ROW_RESULT, 0, "MTU Size: %d", pMsg->msg.mtuEvt.MTU);
+    //Display_print1(dispHandle, SBP_ROW_RESULT, 0, "MTU Size: %d", pMsg->msg.mtuEvt.MTU);
   }
 
   // Free message payload. Needed only for ATT Protocol messages
@@ -1429,7 +1428,7 @@ static void Movedetector_sendAttRsp(void)
     else
     {
       // Continue retrying
-      Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp send retry: %d", rspTxRetry);
+      //Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp send retry: %d", rspTxRetry);
     }
   }
 }
@@ -1451,14 +1450,14 @@ static void Movedetector_freeAttRsp(uint8_t status)
     // See if the response was sent out successfully
     if (status == SUCCESS)
     {
-      Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp sent retry: %d", rspTxRetry);
+      //Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp sent retry: %d", rspTxRetry);
     }
     else
     {
       // Free response payload
       GATT_bm_free(&pAttRsp->msg, pAttRsp->method);
 
-      Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp retry failed: %d", rspTxRetry);
+      //Display_print1(dispHandle, SBP_ROW_STATUS_1, 0, "Rsp retry failed: %d", rspTxRetry);
     }
 
     // Free response message
@@ -1564,15 +1563,17 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 
         DevInfo_SetParameter(DEVINFO_SYSTEM_ID, DEVINFO_SYSTEM_ID_LEN, systemId);
 
+        RPrintf("GAPROLE_STARTED\r\n");
         // Display device address
-        Display_print0(dispHandle, SBP_ROW_BDADDR, 0, Util_convertBdAddr2Str(ownAddress));
-        Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Initialized");
+        //Display_print0(dispHandle, SBP_ROW_BDADDR, 0, Util_convertBdAddr2Str(ownAddress));
+        //Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Initialized");
       }
       break;
 
     case GAPROLE_ADVERTISING:
 //      Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Advertising");
 //      Log_print0(0, "Advertising\r\n");
+        RPrintf("GAPROLE_ADVERTISING\r\n");
       break;
 
 #ifdef PLUS_BROADCASTER
@@ -1616,8 +1617,8 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
         RPrintf("GAPROLE_CONNECTED\r\n");
         if ( linkDB_GetInfo( numActive - 1, &linkInfo ) == SUCCESS )
         {
-          Display_print1(dispHandle, SBP_ROW_ROLESTATE, 0, "Num Conns: %d", (uint16_t)numActive);
-          Display_print0(dispHandle, SBP_ROW_STATUS_1, 0, Util_convertBdAddr2Str(linkInfo.addr));
+          //Display_print1(dispHandle, SBP_ROW_ROLESTATE, 0, "Num Conns: %d", (uint16_t)numActive);
+          //Display_print0(dispHandle, SBP_ROW_STATUS_1, 0, Util_convertBdAddr2Str(linkInfo.addr));
         }
         else
         {
@@ -1625,8 +1626,8 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 
           GAPRole_GetParameter(GAPROLE_CONN_BD_ADDR, peerAddress);
 
-          Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Connected");
-          Display_print0(dispHandle, SBP_ROW_STATUS_1, 0, Util_convertBdAddr2Str(peerAddress));
+          //Display_print0(dispHandle, SBP_ROW_ROLESTATE, 0, "Connected");
+          //Display_print0(dispHandle, SBP_ROW_STATUS_1, 0, Util_convertBdAddr2Str(peerAddress));
         }
 
 #if !defined(Display_DISABLE_ALL)
@@ -1744,6 +1745,8 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
   {
     case MD_CHAR_LED_STATE: //SIMPLEPROFILE_CHAR1:
       Movedetector_GetParameter(MD_CHAR_LED_STATE, &newValue);
+
+      RPrintf("LED State = %d\r\n", newValue);
 //      Log_print1(Diags_USER1, "CharValueChangeEvt 1 = %d\r\n", &newValue);
 
       switch(newValue)
@@ -1777,13 +1780,26 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
     case MD_CHAR_ALARM_SENSITIVITY: //SIMPLEPROFILE_CHAR3:
       //SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
       Movedetector_GetParameter(MD_CHAR_ALARM_SENSITIVITY, &newValue);
+
+      RPrintf("Alarm Sensitivity = %d\r\n", newValue);
 //      Log_print1(Diags_USER1, "CharValueChangeEvt 2 = %d\r\n", &newValue);
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 2\r\n");
 //      LCD_WRITE_STRING_VALUE("Char 3:", (uint16_t)newValue, 10, LCD_PAGE4);
       break;
 
     case MD_CHAR_ALARM_STATE:
-      Start_Alarm();
+        Movedetector_GetParameter(MD_CHAR_ALARM_STATE, &newValue);
+
+        //RPrintf("Alarm State = %d\r\n", newValue);
+        //Start_Alarm();
+//      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
+      break;
+
+    case MD_CHAR_MVMNT_MSG:
+        Movedetector_GetParameter(MD_CHAR_MVMNT_MSG, &newValue);
+
+        RPrintf("Alarm Message = %d\r\n", newValue);
+        //Start_Alarm();
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
       break;
 
@@ -1823,7 +1839,7 @@ static void Movedetector_performPeriodicTask(void)
 //
   if(1) //(tempMem == 1)
   {
-      RPrintf("Hola Hola Hola Hola\r\n");
+      //RPrintf("Hola Hola Hola Hola\r\n");
       Toggle_led();
   }
   if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
@@ -1992,6 +2008,7 @@ static void Movedetector_enqueueMsg(uint8_t event, uint8_t state)
  *
  * @return  always true
  */
+/*
 bool Movedetector_doSetPhy(uint8 index)
 {
   uint8_t gapRoleState;
@@ -2014,15 +2031,15 @@ bool Movedetector_doSetPhy(uint8 index)
   // for RX and TX.
   HCI_LE_SetPhyCmd(connectionHandle, 0, phy[index], phy[index], 0);
 
-  Display_print1(dispHandle, SBP_ROW_RESULT, 0, "PHY preference: %s",
-                 TBM_GET_ACTION_DESC(&sbpMenuMain, index));
+  //Display_print1(dispHandle, SBP_ROW_RESULT, 0, "PHY preference: %s",
+  //               TBM_GET_ACTION_DESC(&sbpMenuMain, index));
 
-  Display_clearLine(dispHandle, SBP_ROW_STATUS_1);
+  //Display_clearLine(dispHandle, SBP_ROW_STATUS_1);
 
   return true;
 }
 //#endif  // !Display_DISABLE_ALL
-
+*/
 /*********************************************************************
 *********************************************************************/
 /*********************************************************************
