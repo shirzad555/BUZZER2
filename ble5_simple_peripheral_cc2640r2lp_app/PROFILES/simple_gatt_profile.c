@@ -863,19 +863,19 @@ bStatus_t  Movedetector_GetParameter( uint8 param, void *value )
   switch ( param )
   {
     case MD_CHAR_LED_STATE:
-      *((uint8*)value) = 101; //ledCharValue;
+      *((uint8*)value) = ledCharValue;
       break;
 
     case MD_CHAR_ALARM_SENSITIVITY:
-      *((uint8*)value) = 105; //alarmSensitivityCharValue;
+      *((uint8*)value) = alarmSensitivityCharValue;
       break;
 
     case MD_CHAR_ALARM_STATE:
-      *((uint8*)value) = 111; //alarmStateCharValue;
+      *((uint8*)value) = alarmStateCharValue;
       break;
 
     case MD_CHAR_MVMNT_MSG:
-      *((uint8*)value) = 115; //alarmMessageCharValue;
+      *((uint8*)value) = alarmMessageCharValue;
       break;
 
     default:
@@ -1212,9 +1212,9 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
     //Write the value
     if ( status == SUCCESS )
     {
-        uint8 major = pValue[0];
-     // notifyApp = MD_CHAR_LED_STATE;
-    //  Movedetector_SetParameter( MD_CHAR_LED_STATE, sizeof(uint8_t), &major );
+      uint8 major = pValue[0];
+      notifyApp = MD_CHAR_ALARM_SENSITIVITY;
+      Movedetector_SetParameter( MD_CHAR_ALARM_SENSITIVITY, sizeof(uint8_t), &major );
 
     }
 
@@ -1270,8 +1270,8 @@ static bStatus_t movedetector_WriteAttrCB(uint16_t connHandle,
     {
       uint8 major = pValue[0];
 
-     // notifyApp = MD_CHAR_MVMNT_MSG;
-     // Movedetector_SetParameter( MD_CHAR_MVMNT_MSG, sizeof(uint8_t), &major );
+      notifyApp = MD_CHAR_MVMNT_MSG;
+      Movedetector_SetParameter( MD_CHAR_MVMNT_MSG, sizeof(uint8_t), &major );
 
     }
 

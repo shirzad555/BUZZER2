@@ -51,13 +51,14 @@ void RPrintf(char const *format, ...)
    va_start(arg, format);
 
    // Determine length of formatted string
+   //length = vsnprintf(buffer, 100, format, arg);
    length = vsprintf(buffer, format, arg);
 
    // Set end of argument (reset argument pointer)
    va_end(arg);
 
    //TxUsart((uint8_t*)buffer, length);
-   TLwrite (buffer, length);
+   TLwrite ((uint8_t*)buffer, length);
 
 //   Task_restore(taskKey);
    Hwi_restore(hwiKey);

@@ -1746,31 +1746,29 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
     case MD_CHAR_LED_STATE: //SIMPLEPROFILE_CHAR1:
       Movedetector_GetParameter(MD_CHAR_LED_STATE, &newValue);
 
-      RPrintf("LED State = %d\r\n", newValue);
-//      Log_print1(Diags_USER1, "CharValueChangeEvt 1 = %d\r\n", &newValue);
+      RPrintf("LED State = ");
+      newValue = newValue + 48; // convert to ascii
+      TLwrite (&newValue, 1);
+      RPrintf("\r\n");
 
       switch(newValue)
       {
       case LED_STATE_OFF:
         PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
-//        Log_print0(Diags_USER1, "LED is OFF\r\n");
         break;
 
       case LED_STATE_ON:
         PINCC26XX_setOutputValue(Board_BLED, LED_ON);
-//        Log_print0(Diags_USER1, "LED is ON\r\n");
         break;
 
       case LED_STATE_FLASH_1:
           ledBlinkCount = LED_BLINK_COUNT_1;
           PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
           Util_startClock(&ledBlinkClock);
-//          Log_print0(Diags_USER1, "LED is flashing in mode 1\r\n");
         break;
 
       default:
-        PINCC26XX_setOutputValue(Board_BLED, LED_OFF); // Shirzad
-//        Log_print0(Diags_USER1, "LED ERROR!!!\r\n");
+        PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
         break;
 
       }
@@ -1781,7 +1779,10 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
       //SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR3, &newValue);
       Movedetector_GetParameter(MD_CHAR_ALARM_SENSITIVITY, &newValue);
 
-      RPrintf("Alarm Sensitivity = %d\r\n", newValue);
+      RPrintf("Alarm Sensitivity = ");
+      newValue = newValue + 48; // convert to ascii
+      TLwrite (&newValue, 1);
+      RPrintf("\r\n");
 //      Log_print1(Diags_USER1, "CharValueChangeEvt 2 = %d\r\n", &newValue);
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 2\r\n");
 //      LCD_WRITE_STRING_VALUE("Char 3:", (uint16_t)newValue, 10, LCD_PAGE4);
@@ -1790,15 +1791,21 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
     case MD_CHAR_ALARM_STATE:
         Movedetector_GetParameter(MD_CHAR_ALARM_STATE, &newValue);
 
-        //RPrintf("Alarm State = %d\r\n", newValue);
-        //Start_Alarm();
-//      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
+        RPrintf("Alarm State = ");
+        newValue = newValue + 48; // convert to ascii
+        TLwrite (&newValue, 1);
+        RPrintf("\r\n");
+
       break;
 
     case MD_CHAR_MVMNT_MSG:
         Movedetector_GetParameter(MD_CHAR_MVMNT_MSG, &newValue);
 
-        RPrintf("Alarm Message = %d\r\n", newValue);
+        RPrintf("Alarm Message = ");
+        newValue = newValue + 48; // convert to ascii
+        TLwrite (&newValue, 1);
+        RPrintf("\r\n");
+
         //Start_Alarm();
 //      Log_print0(Diags_USER1, "CharValueChangeEvt 3\r\n");
       break;
