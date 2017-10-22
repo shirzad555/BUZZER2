@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <section name="Workbench">
 	<section name="org.eclipse.cdt.ui.OPEN_ACTION_SELECTION_DIALOG_SECTION">
-		<item value="940" key="DIALOG_WIDTH"/>
+		<item value="1174" key="DIALOG_WIDTH"/>
 		<item value="1|Segoe UI|9.0|0|WINDOWS|1|-12|0|0|0|400|0|0|0|1|0|0|5|0|Segoe UI" key="DIALOG_FONT_NAME"/>
-		<item value="438" key="DIALOG_HEIGHT"/>
+		<item value="450" key="DIALOG_HEIGHT"/>
 		<item value="348" key="DIALOG_X_ORIGIN"/>
 		<item value="236" key="DIALOG_Y_ORIGIN"/>
 	</section>
@@ -17,6 +17,34 @@
 		<item value="false" key="caseSensitive"/>
 		<item value="227191" key="searchFlags"/>
 		<list key="previousPatterns">
+			<item value="SensorConfiguration"/>
+			<item value="CheckForMovement"/>
+			<item value="InitAccelerometer"/>
+			<item value="AlarmConfiguration"/>
+			<item value="CheckForAlarm"/>
+			<item value="ALARM_MOVEMENT_THRESHOLD"/>
+			<item value="Board_RLED"/>
+			<item value="Board_initKeys"/>
+			<item value="AlarmState"/>
+			<item value="111"/>
+			<item value="Task_construct"/>
+			<item value="GAPRole_createTask"/>
+			<item value="gapRole_taskFxn"/>
+			<item value="gapRole_processStackMsg"/>
+			<item value="gapRole_processGAPMsg"/>
+			<item value="pGapRoles_AppCGs"/>
+			<item value="Movedetector_gapRoleCBs"/>
+			<item value="Movedetector_stateChangeCB"/>
+			<item value="MDP_STATE_CHANGE_EVT"/>
+			<item value="Movedetector_processStateChangeEvt"/>
+			<item value="Display_DISABLE_ALL"/>
+			<item value="Alarm_SetSetting"/>
+			<item value="DevInfo_GetParameter"/>
+			<item value="devInfoMfrName"/>
+			<item value="devInfoMfrNameUUID"/>
+			<item value="devInfoAttrTbl"/>
+			<item value="SH2Corp"/>
+			<item value="manufacturer"/>
 			<item value="movedetectorChar1"/>
 			<item value="Movedetector_SetParameter"/>
 			<item value="Movedetector_GetParameter"/>

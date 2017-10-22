@@ -87,6 +87,8 @@ bleUserCfg_t user0Cfg = BLE_USER_CFG;
 #include <ti/drivers/UART.h>
 #include <ti/drivers/uart/UARTCC26XX.h>
 
+#include "SABLEXR2_DEV_BOARD.h"
+
 //#include <Task.h>
 
 //static char uartTaskStack[512];

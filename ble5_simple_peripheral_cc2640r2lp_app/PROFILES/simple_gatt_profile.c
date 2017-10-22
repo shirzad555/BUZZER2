@@ -393,10 +393,10 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
 
 // //   { ATT_BT_UUID_SIZE, primaryServiceUUID },
 
-//    GATT_PERMIT_READ,                         ///* permissions */
-//    0,                                        ///* handle */
-//    (uint8 *)&simpleProfileService           // /* pValue */
-/*  },
+//    GATT_PERMIT_READ,                         // permissions
+//    0,                                        // handle
+//    (uint8 *)&simpleProfileService           //  pValue
+  },
 
     // Characteristic 1 Declaration
     {

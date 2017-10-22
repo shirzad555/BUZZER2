@@ -1,0 +1,66 @@
+/*
+ * alarm.c
+ *
+ *  Created on: Jun 25, 2017
+ *      Author: Shirzad
+ */
+
+#include <stdint.h>
+#include "bcomdef.h"
+#include "comdef.h"
+#include "alarm.h"
+
+#include "console.h"
+
+
+
+// Alarm Setting var
+static uint8_t alarm_current_setting = ALARM_OFF;
+
+void AlarmConfiguration (uint8_t threshold, uint8_t duration)
+{
+    uint8_t bVal;
+    LIS3DH_Filter filter_Parms;
+
+    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
+    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
+    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
+    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
+
+  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
+    LIS3DH_SetFilter(filter_Parms);
+    LIS3DH_InterruptCtrl();
+    LIS3DH_Interrupt1Threshold(threshold); //0x05 // Best way to adjust sensitivity
+    LIS3DH_Interrupt1Duration(duration); // 2 // you can add duration here too
+    LIS3DH_ReadRefrence(&bVal); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
+    LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+}
+
+/*********************************************************************
+ */
+bStatus_t Alarm_SetSetting( uint8_t alarm_setting )
+{
+    RPrintf("Alarm State = %d\r\n", alarm_setting);
+  if (alarm_setting <= ALARM_ON_SEN_5)
+  {
+	  alarm_current_setting = alarm_setting;
+	  return SUCCESS;
+  }
+  else
+  {
+	  alarm_current_setting = ALARM_ERROR;
+	  return INVALIDPARAMETER;
+  }
+}
+
+/*********************************************************************
+ */
+uint8_t  Alarm_GetSetting (void)
+{
+  return alarm_current_setting;
+}
+
+void Start_Alarm (void)
+{
+
+}

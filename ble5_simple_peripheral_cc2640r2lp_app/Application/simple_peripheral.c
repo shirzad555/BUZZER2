@@ -94,7 +94,7 @@
 
 #include "simple_peripheral.h"
 
-#include "LIS3DH_Driver.h"
+//#include "LIS3DH_Driver.h"
 #include "led.h"
 #include "PINCC26XX.h"
 #include "alarm.h"
@@ -155,7 +155,7 @@
 // How often to perform periodic event (in msec)
 #define MDP_PERIODIC_EVT_PERIOD               500  // 5000 Original
 #define MDP_LED_BLINK_EVT_PERIOD              250
-#define MDP_SENSOR_MOVE_EVT_PERIOD            40
+#define MDP_SENSOR_MOVE_EVT_PERIOD            250 //40
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -236,10 +236,6 @@
 #define SBP_ROW_STATUS_2      (TBM_ROW_APP + 2)
 #define SBP_ROW_ROLESTATE     (TBM_ROW_APP + 3)
 #define SBP_ROW_BDADDR        (TBM_ROW_APP + 4)
-
-#define SENSOR_MOVE_COUNT                       10
-#define ALARM_MOVEMENT_THRESHOLD                10
-
 
 #if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
 #define APP_TL_BUFF_SIZE                      150
@@ -383,14 +379,42 @@ static uint8_t rspTxRetry = 0;
 uint8_t ledBlinkCount = 0;
 uint8_t sensorCheckCount = 0;
 
-static uint16_t static_xyzValue[3][SENSOR_MOVE_COUNT];
-//static uint16_t static_yValue[SENSOR_MOVE_COUNT];
-//static uint16_t static_zValue[SENSOR_MOVE_COUNT];
-
 #if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
 //used to store data read from transport layer
 static uint8_t appRxBuf[APP_TL_BUFF_SIZE];
 #endif //TL
+
+/////////////***************************************************//////////////////////////////////
+/////////////***************************************************//////////////////////////////////
+/////////////***************************************************//////////////////////////////////
+
+static void Board_keyCallbackShirzad(PIN_Handle hPin, PIN_Id pinId);
+
+// Value of keys Pressed
+static uint8_t keysPressedShirzad;
+
+// Key debounce clock
+static Clock_Struct keyChangeClockShirzad;
+
+
+// PIN configuration structure to set all KEY pins as inputs with pullups enabled
+PIN_Config keyPinsCfgShirzad[] =
+{
+
+   Board_BTN1          | PIN_GPIO_OUTPUT_DIS  | PIN_INPUT_EN  |  PIN_PULLUP, //PIN_PULLDOWN // PIN_PULLUP, // Shirzad
+//   Board_BTN2          | PIN_GPIO_OUTPUT_DIS  | PIN_INPUT_EN  |  PIN_PULLUP,
+
+   PIN_TERMINATE
+};
+
+PIN_State  keyPinsShirzad;
+PIN_Handle hKeyPinsShirzad;
+
+/////////////***************************************************//////////////////////////////////
+/////////////***************************************************//////////////////////////////////
+/////////////***************************************************//////////////////////////////////
+
+
 
 /*********************************************************************
  * LOCAL FUNCTIONS
@@ -426,9 +450,8 @@ void Movedetector_processOadWriteCB(uint8_t event, uint16_t connHandle,
 void MovedetectorSensor_keyChangeHandler(uint8 keysPressed);
 //static void Movedetector_handleKeys(uint8_t keys);
 static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys);
-static void ReadSensorValue(void);
-static void CheckForAlarm(void);
 
+static void SensorMovement_clockHandler(UArg arg);
 //uint8_t SimpleUART_initialize(Char *tRxBuf, Char *tTxBuf);
 //void Write_Hello(void);
 //static void NPITLUART_writeCallBack(UART_Handle handle, void *ptr, size_t size);
@@ -699,13 +722,15 @@ void Movedetector_createTask(void)
  */
 static void Movedetector_init(void)
 {
+    //uint8_t temp;
+
+    /*
     LIS3DH_Filter filter_Parms;
-    uint8_t temp;
     filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
     filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
     filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
     filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
-
+     */
     /*
     // Enable System_printf(..) UART output
     UART_Handle uart_handle;
@@ -756,12 +781,34 @@ static void Movedetector_init(void)
                       MDP_LED_BLINK_EVT_PERIOD, 0, false, MDP_LED_BLINK_EVT);
 
   // Create one-shot clocks for sensor events.
-  Util_constructClock(&sensorMovementClock, Movedetector_clockHandler,
-                      MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
+//  Util_constructClock(&sensorMovementClock, Movedetector_clockHandler,
+//                      MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
 
+//  Util_constructClock(&sensorMovementClock, SensorMovement_clockHandler,
+ //                     MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, 0);
 
   // Initialize keys
-  Board_initKeys(MovedetectorSensor_keyChangeHandler);
+ // Board_initKeys(MovedetectorSensor_keyChangeHandler);
+
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  // Initialize KEY pins. Enable int after callback registered
+//  hKeyPinsShirzad = PIN_open(&keyPinsShirzad, keyPinsCfgShirzad);
+
+//  PIN_registerIntCb(hKeyPinsShirzad, Board_keyCallbackShirzad);
+
+//  PIN_setConfig(hKeyPinsShirzad, PIN_BM_IRQ, Board_BTN1        | PIN_IRQ_NEGEDGE); //PIN_IRQ_POSEDGE // PIN_IRQ_NEGEDGE); // Shirzad
+//  PIN_setConfig(hKeyPinsShirzad, PIN_BM_IRQ, Board_BTN2        | PIN_IRQ_NEGEDGE);
+
+//  PIN_setConfig(hKeyPinsShirzad, PINCC26XX_BM_WAKEUP, Board_BTN1        | PINCC26XX_WAKEUP_NEGEDGE); // PINCC26XX_WAKEUP_POSEDGE  PINCC26XX_WAKEUP_NEGEDGE); // Shirzad
+//  PIN_setConfig(hKeyPinsShirzad, PINCC26XX_BM_WAKEUP, Board_BTN2        | PINCC26XX_WAKEUP_NEGEDGE);
+
+  // Setup keycallback for keys
+//  Util_constructClock(&keyChangeClockShirzad, SensorMovement_clockHandler,
+//                      200, 0, false, 0);
+//  Util_constructClock(&keyChangeClockShirzad, Movedetector_clockHandler,
+//                        250, 0, false, MDP_SENSOR_MOVE_EVT);
+  //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
   // Init LED
   Led_init();
@@ -771,15 +818,9 @@ static void Movedetector_init(void)
   TLinit(&syncEvent, &SimpleBLEPeripheral_TLCBs, TRANSPORT_TX_DONE_EVENT, TRANSPORT_RX_EVENT, MRDY_EVENT); // sem
 #endif //TL
 
-//  while(1)
-//  {
-//  tTxBuf = "Hello World";
   uint8_t tTxBuf[] = "Hello World";
-      TLwrite (tTxBuf, sizeof(tTxBuf));
-      //This function will write len amount of bytes via SPI/UART starting at memory location buf
-//  }
-      //temp = 0;
-      //RPrintf("******* %d\r\n", temp);
+  TLwrite (tTxBuf, sizeof(tTxBuf));
+
 
 /*
   UART_Params_init(&uartParams);
@@ -805,24 +846,11 @@ static void Movedetector_init(void)
 //  PINCC26XX_setOutputValue(Board_SPI0_CLK, 0);
 
   ////////////////////////////////// LIS3DH /////////////////////////////////////////////////////
+  InitMovementSensor();
+  DisableAccelerometerIntterupt();
 
-  if (!LIS3DH_Initialize())
-  {
-      //PINCC26XX_setOutputValue(Board_BLED, 0);
-      while(1);
-      //tempMem = 1;
-  }
-
-  LIS3DH_SetDeviceMode(LIS3DH_MODE_LOW_POWER, LIS3DH_ODR_25_HZ, LIS3DH_FULL_SCALE_SELECTION_4G);
-  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
-  LIS3DH_SetFilter(filter_Parms);
-  LIS3DH_InterruptCtrl();
-  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
-  LIS3DH_Interrupt1Duration(2);// you can add duration here too
-  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
-  LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
-  RPrintf(" LIS3DH is Good!\r\n");
-
+  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT AND ENABLE INTERRUPT/////////////////////////////////////////////////////////////////////////////////
+  //SensorConfiguration (0x05, 2);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -1057,6 +1085,8 @@ static void Movedetector_init(void)
 //  HCI_LE_ReadLocalSupportedFeaturesCmd();
 #endif // !defined (USE_LL_CONN_PARAM_UPDATE)
 
+     // Board_initKeys(MovedetectorSensor_keyChangeHandler);
+
   // Start the GAPRole
   VOID GAPRole_StartDevice(&Movedetector_gapRoleCBs);
 }
@@ -1152,32 +1182,42 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
         // Perform periodic application task
         Movedetector_performPeriodicTask();
       }
-      if ( events & MDP_LED_BLINK_EVT && ledBlinkCount > 0) // events & MDP_LED_BLINK_EVT &&
+      if ( events & MDP_LED_BLINK_EVT) // events & MDP_LED_BLINK_EVT &&
       {
           events &= ~MDP_LED_BLINK_EVT;
-          ledBlinkCount--;
-          Util_startClock(&ledBlinkClock);  // start the next clock, this will continue until the led blink counter is zero
+          if (ledBlinkCount > 0)
+          {
+              ledBlinkCount--;
+              Util_startClock(&ledBlinkClock);  // start the next clock, this will continue until the led blink counter is zero
      //     Log_print0(Diags_USER1, "Toggling led\r\n");
-     //     Toggle_led();
-          BuzzerOnOff(true);
-          valueForTest++;
-          Movedetector_SetParameter(MD_CHAR_ALARM_SENSITIVITY, sizeof(uint8_t), &valueForTest);
+              Toggle_led();
+     //     BuzzerOnOff(true);
+     //     valueForTest++;
+     //     Movedetector_SetParameter(MD_CHAR_ALARM_SENSITIVITY, sizeof(uint8_t), &valueForTest);
           //PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
+          }
       }
       if (events & MDP_SENSOR_MOVE_EVT)
       {
-          events &= ~MDP_SENSOR_MOVE_EVT;
+          events &= ~MDP_SENSOR_MOVE_EVT;  // if no code after this, GAPROLE never goes to advertising!!!
+
           if(sensorCheckCount > 0)
           {
               sensorCheckCount--;
+              ReadSensorValue(sensorCheckCount);
               Util_startClock(&sensorMovementClock);
-              ReadSensorValue();
+              //RPrintf("x!\r\n");
+              Toggle_led();
           }
           else
           {
-              ////sensorCheckCount = SENSOR_MOVE_COUNT;
-              CheckForAlarm();
+              if(CheckForMovement())
+              {
+                 RPrintf("Device Moved!!!\r\n");
+              }
           }
+
+
       }
 
 #if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
@@ -1746,11 +1786,6 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
     case MD_CHAR_LED_STATE: //SIMPLEPROFILE_CHAR1:
       Movedetector_GetParameter(MD_CHAR_LED_STATE, &newValue);
 
-      RPrintf("LED State = ");
-      newValue = newValue + 48; // convert to ascii
-      TLwrite (&newValue, 1);
-      RPrintf("\r\n");
-
       switch(newValue)
       {
       case LED_STATE_OFF:
@@ -1762,17 +1797,21 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
         break;
 
       case LED_STATE_FLASH_1:
-          ledBlinkCount = LED_BLINK_COUNT_1;
-          PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
-          Util_startClock(&ledBlinkClock);
+        ledBlinkCount = LED_BLINK_COUNT_1;
+        PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+        Util_startClock(&ledBlinkClock);
         break;
 
       default:
         PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
         break;
-
       }
-//      LCD_WRITE_STRING_VALUE("Char 1:", (uint16_t)newValue, 10, LCD_PAGE4);
+
+      RPrintf("LED State = ");
+      newValue = newValue + 48; // convert to ascii
+      TLwrite (&newValue, 1);
+      RPrintf("\r\n");
+
       break;
 
     case MD_CHAR_ALARM_SENSITIVITY: //SIMPLEPROFILE_CHAR3:
@@ -1790,6 +1829,30 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 
     case MD_CHAR_ALARM_STATE:
         Movedetector_GetParameter(MD_CHAR_ALARM_STATE, &newValue);
+
+        switch(newValue)
+        {
+        case ALARM_STATE_OFF:
+          //PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+          DisableAccelerometerIntterupt();
+          break;
+
+        case ALARM_STATE_BUZ:
+          SensorConfiguration (0x05, 2); // Enable Sensor Interrupt
+          break;
+
+        case ALARM_STATE_LED:
+
+          break;
+
+        case ALARM_STATE_MSG:
+
+          break;
+
+        default:
+          //PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+          break;
+        }
 
         RPrintf("Alarm State = ");
         newValue = newValue + 48; // convert to ascii
@@ -1846,8 +1909,8 @@ static void Movedetector_performPeriodicTask(void)
 //
   if(1) //(tempMem == 1)
   {
-      //RPrintf("Hola Hola Hola Hola\r\n");
-      Toggle_led();
+      uint8_t bVal = PINCC26XX_getOutputValue(Board_GLED);
+      PINCC26XX_setOutputValue(Board_GLED, !bVal);
   }
   if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
   {
@@ -2094,34 +2157,17 @@ static void MovedetectorSensor_enqueueMsg(uint8_t event, uint8_t state)
 static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys)
 {
   (void)shift;  // Intentionally unreferenced parameter
-    LIS3DH_Filter filter_Parms;
-    uint8_t temp;
 
-    RPrintf("Testing for sure!!!\r\n");
+    //RPrintf("EXTI\r\n");
     //PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
 
-if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
-{
-  //PINCC26XX_setOutputValue(Board_BLED, LED_ON);
-//  Log_print0(Diags_USER1, "**\r\n");
-
-    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
-    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_BYPASS;
-    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
-    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
-
-    /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
-    LIS3DH_SetFilter(filter_Parms);
-//  LIS3DH_InterruptCtrl();
-//  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
-//  LIS3DH_Interrupt1Duration(2);// you can add duration here too
-//  LIS3DH_ReadRefrence(&temp); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
-    LIS3DH_Interrupt1Config(0x00); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
-
-    LIS3DH_ReadINT1Source(&temp); // Return the event that has triggered the interrupt and clear interrupt
-    sensorCheckCount = SENSOR_MOVE_COUNT;
-  Util_startClock(&sensorMovementClock);
-}
+    if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
+    {
+        DisableAccelerometerIntterupt();
+        sensorCheckCount = SENSOR_MOVE_COUNT;
+      //  Util_startClock(&sensorMovementClock);
+    }
+    PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
 /*  uint8_t moveDetector;
   Movedetector_GetParameter(MOVEDETECTOR_CHAR1, &moveDetector);
   if (keys & KEY_UP)
@@ -2159,91 +2205,16 @@ if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
  */
 void MovedetectorSensor_keyChangeHandler(uint8 keysPressed)
 {
-//    RPrintf("Testing for sure2!!!\r\n");
-//  Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keysPressed); //HOLA
   Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keysPressed);
 }
 
 
-/////// Read XYZ and see if the detected movement from HPF is real (not noise) //////////////
-void ReadSensorValue(void)
+static void SensorMovement_clockHandler(UArg arg)
 {
-    uint16_t xValue;
-    uint16_t yValue;
-    uint16_t zValue;
+    Toggle_led();
 
-    LIS3DH_ReadDeviceValue(&xValue, &yValue, &zValue); // clear the interrupt
-
-    // math below will change the xyz values from 2s complement to 0x00 (-2g) to 0xFF (2g)
-    xValue = xValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
-    if (xValue > 0x7F) xValue = xValue & 0x7F;
-    else xValue = xValue | 0x80;
-
-    yValue = yValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
-    if (yValue > 0x7F) yValue = yValue & 0x7F;
-    else yValue = yValue | 0x80;
-
-    zValue = zValue & 0xFF; // in 8-bit mode sometimes i have seen 0x100 which is not correct, mask to remove the bug
-    if (zValue > 0x7F) zValue = zValue & 0x7F;
-    else zValue = zValue | 0x80;
-//  Log_print3(Diags_USER1, "XYZ_1 = %x, %d, %d", xValue, yValue, zValue);
-
-    static_xyzValue[0][sensorCheckCount] = xValue;
-    static_xyzValue[1][sensorCheckCount] = yValue;
-    static_xyzValue[2][sensorCheckCount] = zValue;
-//  static_xValue[sensorCheckCount] = xValue;
-//  static_yValue[sensorCheckCount] = yValue;
-//  static_zValue[sensorCheckCount] = zValue;
-
-    // create a periodic task to read XYZ, compare with the previous numbers and interrupt if more change then the threshold
 }
 
-static void CheckForAlarm(void)
-{
-    uint8_t i, j;
-    uint8_t bVal;
-    LIS3DH_Filter filter_Parms;
-    uint8_t lastxyzValue[3] = {static_xyzValue[0][0], static_xyzValue[1][0], static_xyzValue[2][0]};
-    uint8_t maxDiff = 0;
-
-    for (i=1; i<SENSOR_MOVE_COUNT; i++)
-    {
-        for (j=0; j<3; j++)
-        {
-            if(static_xyzValue[j][i] > lastxyzValue[j]) bVal = static_xyzValue[j][i] - lastxyzValue[j];
-            else bVal = lastxyzValue[j] - static_xyzValue[j][i];
-            if (bVal > maxDiff)
-            {
-                maxDiff = bVal;
-                lastxyzValue[j] = static_xyzValue[j][i];
-//                Log_print1(Diags_USER1, "maxDiff = %d", maxDiff);
-            }
-        }
-//        Log_print4(Diags_USER1, "s_XYZ_%d = %d, %d, %d", i, static_xyzValue[0][i], static_xyzValue[1][i], static_xyzValue[2][i]);
-    }
-
-    if (maxDiff > ALARM_MOVEMENT_THRESHOLD)
-    {
-        //bVal = PINCC26XX_getOutputValue(Board_GLED);
-        //PINCC26XX_setOutputValue(Board_GLED, !bVal);
-        ////PINCC26XX_setOutputValue(BOARD_LED1, LED_ON);
-    }
-
-    filter_Parms.highPassFilterIntEnable = LIS3DH_HF_FILTER_INT_AI1; //LIS3DH_HF_FILTER_INT_NONE; //LIS3DH_HF_FILTER_INT_AI1;
-    filter_Parms.highPassFilterDataSel = LIS3DH_HF_FILTER_DATA_SEL_OUT;
-    filter_Parms.highPassFilterMode = LIS3DH_HF_FILTER_MODE_NORMAL_RESET;
-    filter_Parms.highPassFilterCutOffFreq = LIS3DH_HF_FILTER_CUTOFF_FREQ_3;
-
-  //LIS3DH_Initialize();
-  //LIS3DH_SetDeviceMode(LIS3DH_MODE_LOW_POWER, LIS3DH_ODR_25_HZ, LIS3DH_FULL_SCALE_SELECTION_4G);
-  /////////////////////// THIS IS TO SETUP THE HIGH PASS FILTER INTERRUPT /////////////////////////////////////////////////////////////////////////////////
-  LIS3DH_SetFilter(filter_Parms);
-  LIS3DH_InterruptCtrl();
-  LIS3DH_Interrupt1Threshold(0x05); // Best way to adjust sensitivity
-  LIS3DH_Interrupt1Duration(2);// you can add duration here too
-  LIS3DH_ReadRefrence(&bVal); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
-  LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
-}
 
 //Define the callback function which will parse any data received from the TL. Instead of echoing, this should be modified to parse the user's custom packet format and proceed as desired.
 #if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
@@ -2277,4 +2248,20 @@ uint16_t TLgetRxBufLen(void)
 This function will return the amount of bytes available to be read from the NPI circular buffer. See the Software Architecture and Considerations section below for more information.
 */
 
+static void Board_keyCallbackShirzad(PIN_Handle hPin, PIN_Id pinId)
+{
+    Toggle_led();
+  //Util_startClock(&keyChangeClockShirzad);
+ //   if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
+ //   {
+        //DisableAccelerometerIntterupt();
+        //sensorCheckCount = SENSOR_MOVE_COUNT;
+        //Util_startClock(&keyChangeClockShirzad);
+        ////Util_startClock(&sensorMovementClock);
+        //ledBlinkCount = LED_BLINK_COUNT_1;
+        //Util_startClock(&ledBlinkClock);
+//    }
+    //PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
+
+}
 
