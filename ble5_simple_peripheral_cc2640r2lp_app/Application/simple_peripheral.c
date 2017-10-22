@@ -287,6 +287,12 @@ static Clock_Struct periodicClock;
 static Clock_Struct ledBlinkClock;
 static Clock_Struct sensorMovementClock;
 
+// Key debounce clock
+static Clock_Struct debouncerClock;
+
+// Reading sensor clock
+static Clock_Struct sensorReadingClock; //
+
 // Queue object used for app messages
 static Queue_Struct appMsg;
 static Queue_Handle appMsgQueue;
@@ -388,17 +394,11 @@ static uint8_t appRxBuf[APP_TL_BUFF_SIZE];
 /////////////***************************************************//////////////////////////////////
 /////////////***************************************************//////////////////////////////////
 
-static void Board_keyCallbackShirzad(PIN_Handle hPin, PIN_Id pinId);
-
-// Key debounce clock
-static Clock_Struct debouncerClock;
-
-// Reading sensor clock
-static Clock_Struct keyChangeClockShirzad; //
+static void SensorIntCallBack(PIN_Handle hPin, PIN_Id pinId);
 
 
 // PIN configuration structure to set all KEY pins as inputs with pullups enabled
-PIN_Config keyPinsCfgShirzad[] =
+PIN_Config keyPinsCfgSensorInt[] =
 {
    Board_KEY1       | PIN_INPUT_EN  | PIN_PULLUP | PIN_HYSTERESIS,
 
@@ -408,8 +408,8 @@ PIN_Config keyPinsCfgShirzad[] =
    PIN_TERMINATE
 };
 
-PIN_State  keyPinsShirzad;
-PIN_Handle hKeyPinsShirzad;
+PIN_State  keyPinsSensorInt;
+PIN_Handle hKeyPinsSensorInt;
 
 /////////////***************************************************//////////////////////////////////
 /////////////***************************************************//////////////////////////////////
@@ -795,26 +795,26 @@ static void Movedetector_init(void)
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   // Initialize KEY pins. Enable int after callback registered
-  hKeyPinsShirzad = PIN_open(&keyPinsShirzad, keyPinsCfgShirzad);
+  hKeyPinsSensorInt = PIN_open(&keyPinsSensorInt, keyPinsCfgSensorInt);
 
-  PIN_registerIntCb(hKeyPinsShirzad, Board_keyCallbackShirzad);
+  PIN_registerIntCb(hKeyPinsSensorInt, SensorIntCallBack);
 
-  PIN_setConfig(hKeyPinsShirzad, PIN_BM_IRQ, Board_BTN1        | PIN_IRQ_NEGEDGE); //PIN_IRQ_POSEDGE // PIN_IRQ_NEGEDGE); // Shirzad
+  PIN_setConfig(hKeyPinsSensorInt, PIN_BM_IRQ, Board_BTN1        | PIN_IRQ_NEGEDGE); //PIN_IRQ_POSEDGE // PIN_IRQ_NEGEDGE); // Shirzad
 //  PIN_setConfig(hKeyPinsShirzad, PIN_BM_IRQ, Board_BTN2        | PIN_IRQ_NEGEDGE);
 
-  PIN_setConfig(hKeyPinsShirzad, PINCC26XX_BM_WAKEUP, Board_BTN1        | PINCC26XX_WAKEUP_NEGEDGE); // PINCC26XX_WAKEUP_POSEDGE  PINCC26XX_WAKEUP_NEGEDGE); // Shirzad
+  PIN_setConfig(hKeyPinsSensorInt, PINCC26XX_BM_WAKEUP, Board_BTN1        | PINCC26XX_WAKEUP_NEGEDGE); // PINCC26XX_WAKEUP_POSEDGE  PINCC26XX_WAKEUP_NEGEDGE); // Shirzad
 //  PIN_setConfig(hKeyPinsShirzad, PINCC26XX_BM_WAKEUP, Board_BTN2        | PINCC26XX_WAKEUP_NEGEDGE);
 
   // Setup keycallback for keys
 //  Util_constructClock(&keyChangeClockShirzad, SensorMovement_clockHandler,
 //                      200, 0, false, 0);
-  Util_constructClock(&keyChangeClockShirzad, Movedetector_clockHandler,
-                      MDP_LED_BLINK_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
+  Util_constructClock(&sensorReadingClock, Movedetector_clockHandler,
+                      MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
 
 
   // Setup a debouncing timer
   Util_constructClock(&debouncerClock, InterruptDebouncer_clockHandler,
-                      200, 0, false, 0);
+                      KEY_DEBOUNCE_TIMEOUT, 0, false, 0);
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -1210,24 +1210,27 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
       if (events & MDP_SENSOR_MOVE_EVT)
       {
           events &= ~MDP_SENSOR_MOVE_EVT;  // if no code after this, GAPROLE never goes to advertising!!!
-          Util_stopClock(&keyChangeClockShirzad);
+          //Util_stopClock(&keyChangeClockShirzad);
           if(sensorCheckCount > 0)
           {
 
               sensorCheckCount--;
               ReadSensorValue(sensorCheckCount);
-              RPrintf("x!\r\n");
+              //RPrintf("x!\r\n");
               Toggle_led();
-              Util_startClock(&keyChangeClockShirzad);
+              Util_restartClock(&sensorReadingClock, MDP_SENSOR_MOVE_EVT_PERIOD);
+              //Util_startClock(&keyChangeClockShirzad);
           }
           else
           {
               if(CheckForMovement())
               {
+                 // Movement happened!!!
                  RPrintf("Device Moved!!!\r\n");
               }
               else
               {
+                 // False Alarm (probably b/c of noise or if sensitivity is too high)
                  RPrintf("Noisy Movement!\r\n");
               }
           }
@@ -2263,28 +2266,9 @@ uint16_t TLgetRxBufLen(void)
 This function will return the amount of bytes available to be read from the NPI circular buffer. See the Software Architecture and Considerations section below for more information.
 */
 
-static void Board_keyCallbackShirzad(PIN_Handle hPin, PIN_Id pinId)
+static void SensorIntCallBack(PIN_Handle hPin, PIN_Id pinId)
 {
-    //Toggle_led();
-    //MovedetectorSensor_keyChangeHandler(0);
-  //Util_startClock(&keyChangeClockShirzad);
-
-    /*
-    if (sensorCheckCount == 0) // wait for the previous interrupt routine to finish
-    {
-        DisableAccelerometerIntterupt();
-        sensorCheckCount = SENSOR_MOVE_COUNT;
-        Util_startClock(&keyChangeClockShirzad);
-        RPrintf("Y\r\n");
-
-        ////Util_startClock(&sensorMovementClock);
-        //ledBlinkCount = LED_BLINK_COUNT_1;
-        //Util_startClock(&ledBlinkClock);
-    }
-    PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
-    */
     Util_startClock(&debouncerClock);
-
 }
 
 /*********************************************************************
@@ -2302,14 +2286,14 @@ static void InterruptDebouncer_clockHandler(UArg arg)
     {
         DisableAccelerometerIntterupt();
         sensorCheckCount = SENSOR_MOVE_COUNT;
-        Util_startClock(&keyChangeClockShirzad);
+        Util_startClock(&sensorReadingClock);
         //RPrintf("Y\r\n");
 
         ////Util_startClock(&sensorMovementClock);
         //ledBlinkCount = LED_BLINK_COUNT_1;
         //Util_startClock(&ledBlinkClock);
     }
-    PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
+    //PINCC26XX_setOutputValue(Board_RLED, Board_LED_ON);
 }
 
 
