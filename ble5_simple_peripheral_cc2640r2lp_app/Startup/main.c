@@ -88,6 +88,7 @@ bleUserCfg_t user0Cfg = BLE_USER_CFG;
 #include <ti/drivers/uart/UARTCC26XX.h>
 
 #include "SABLEXR2_DEV_BOARD.h"
+#include "console.h"
 
 //#include <Task.h>
 
@@ -336,51 +337,66 @@ void AssertHandler(uint8 assertCause, uint8 assertSubcause)
     dispHandle = Display_open(Display_Type_LCD, NULL);
   }
 
-  Display_print0(dispHandle, 0, 0, ">>>STACK ASSERT");
+  //Display_print0(dispHandle, 0, 0, ">>>STACK ASSERT");
+  RPrintf(">>>STACK ASSERT\r\n");
 
   // check the assert cause
   switch (assertCause)
   {
     case HAL_ASSERT_CAUSE_OUT_OF_MEMORY:
-      Display_print0(dispHandle, 0, 0, "***ERROR***");
-      Display_print0(dispHandle, 2, 0, ">> OUT OF MEMORY!");
+      //Display_print0(dispHandle, 0, 0, "***ERROR***");
+      RPrintf("***ERROR***");
+      //Display_print0(dispHandle, 2, 0, ">> OUT OF MEMORY!");
+      RPrintf(">> OUT OF MEMORY!\r\n");
       break;
 
     case HAL_ASSERT_CAUSE_INTERNAL_ERROR:
       // check the subcause
       if (assertSubcause == HAL_ASSERT_SUBCAUSE_FW_INERNAL_ERROR)
       {
-        Display_print0(dispHandle, 0, 0, "***ERROR***");
-        Display_print0(dispHandle, 2, 0, ">> INTERNAL FW ERROR!");
+        //Display_print0(dispHandle, 0, 0, "***ERROR***");
+        RPrintf("***ERROR***");
+        //Display_print0(dispHandle, 2, 0, ">> INTERNAL FW ERROR!");
+        RPrintf(">> INTERNAL FW ERROR!\r\n");
       }
       else
       {
-        Display_print0(dispHandle, 0, 0, "***ERROR***");
-        Display_print0(dispHandle, 2, 0, ">> INTERNAL ERROR!");
+        //Display_print0(dispHandle, 0, 0, "***ERROR***");
+        RPrintf("***ERROR***");
+        //Display_print0(dispHandle, 2, 0, ">> INTERNAL ERROR!");
+        RPrintf(">> INTERNAL ERROR!\r\n");
       }
       break;
 
     case HAL_ASSERT_CAUSE_ICALL_ABORT:
-      Display_print0(dispHandle, 0, 0, "***ERROR***");
-      Display_print0(dispHandle, 2, 0, ">> ICALL ABORT!");
+      //Display_print0(dispHandle, 0, 0, "***ERROR***");
+      RPrintf("***ERROR***");
+      //Display_print0(dispHandle, 2, 0, ">> ICALL ABORT!");
+      RPrintf(">> ICALL ABORT!\r\n");
       HAL_ASSERT_SPINLOCK;
       break;
 
     case HAL_ASSERT_CAUSE_ICALL_TIMEOUT:
-      Display_print0(dispHandle, 0, 0, "***ERROR***");
-      Display_print0(dispHandle, 2, 0, ">> ICALL TIMEOUT!");
+      //Display_print0(dispHandle, 0, 0, "***ERROR***");
+      RPrintf("***ERROR***");
+      //Display_print0(dispHandle, 2, 0, ">> ICALL TIMEOUT!");
+      RPrintf(">> ICALL TIMEOUT!\r\n");
       HAL_ASSERT_SPINLOCK;
       break;
 
     case HAL_ASSERT_CAUSE_WRONG_API_CALL:
-      Display_print0(dispHandle, 0, 0, "***ERROR***");
-      Display_print0(dispHandle, 2, 0, ">> WRONG API CALL!");
+      //Display_print0(dispHandle, 0, 0, "***ERROR***");
+      RPrintf("***ERROR***");
+      //Display_print0(dispHandle, 2, 0, ">> WRONG API CALL!");
+      RPrintf(">> WRONG API CALL!\r\n");
       HAL_ASSERT_SPINLOCK;
       break;
 
   default:
-      Display_print0(dispHandle, 0, 0, "***ERROR***");
-      Display_print0(dispHandle, 2, 0, ">> DEFAULT SPINLOCK!");
+      //Display_print0(dispHandle, 0, 0, "***ERROR***");
+      RPrintf("***ERROR***");
+      //Display_print0(dispHandle, 2, 0, ">> DEFAULT SPINLOCK!");
+      RPrintf(">> DEFAULT SPINLOCK!\r\n");
       HAL_ASSERT_SPINLOCK;
   }
 
