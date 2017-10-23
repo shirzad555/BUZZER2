@@ -36,12 +36,6 @@ void Toggle_led(void)
 	PINCC26XX_setOutputValue(Board_BLED, !bVal);
 }
 
-void BuzzerOnOff(bool state)
-{
-    if(state == false) PINCC26XX_setOutputValue(Buzzer_PWM, 1); // 1 = Disable, 0 = Enable
-    else PINCC26XX_setOutputValue(Buzzer_PWM, 0); // 1 = Disable, 0 = Enable
-}
-
 /*
 void Led_Flash(LED_State flash_type)
 {
