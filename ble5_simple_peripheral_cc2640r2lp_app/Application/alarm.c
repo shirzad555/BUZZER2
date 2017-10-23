@@ -38,7 +38,7 @@ void InitMovementSensor(void)
 /*
  // Configure the accelerometer to interrupt when moved based on threshold and duration as inputs
  */
-void SensorConfiguration (uint8_t threshold, uint8_t duration)
+void EnableAccelerometerIntterupt (uint8_t threshold, uint8_t duration)
 {
     uint8_t bVal;
     LIS3DH_Filter filter_Parms;
@@ -55,6 +55,8 @@ void SensorConfiguration (uint8_t threshold, uint8_t duration)
     LIS3DH_Interrupt1Duration(duration); // 2 // you can add duration here too
     LIS3DH_ReadRefrence(&bVal); // Dummy read to force the HP filter to current acceleration value  (i.e. set reference acceleration/tilt value)
     LIS3DH_Interrupt1Config(0x2A); // Configure desired wake-up event (AOI 6D ZHIE ZLIE YHIE YLIE XHIE XLIE)
+
+    LIS3DH_ReadINT1Source(&bVal); // Return the event that has triggered the interrupt and clear interrupt
 }
 
 /*
@@ -133,7 +135,6 @@ uint8_t CheckForMovement(void)
         }
 //        Log_print4(Diags_USER1, "s_XYZ_%d = %d, %d, %d", i, static_xyzValue[0][i], static_xyzValue[1][i], static_xyzValue[2][i]);
     }
-
     if (maxDiff > SENSOR_MOVEMENT_THRESHOLD)
     {
         //bVal = PINCC26XX_getOutputValue(Board_RLED);
@@ -145,9 +146,6 @@ uint8_t CheckForMovement(void)
     {
         bVal = 0;
     }
-
-    SensorConfiguration (0x05, 2); // Enable sensor's interrupt again
-
     return bVal;
 }
 

@@ -26,7 +26,7 @@ void ReadSensorValue(uint8_t counter);
 uint8_t CheckForMovement(void);
 void DisableAccelerometerIntterupt (void);
 
-void SensorConfiguration (uint8_t threshold, uint8_t duration);
+void EnableAccelerometerIntterupt (uint8_t threshold, uint8_t duration);
 
 bStatus_t Alarm_SetSetting( uint8_t alarm_setting );
 uint8_t  Alarm_GetSetting (void);

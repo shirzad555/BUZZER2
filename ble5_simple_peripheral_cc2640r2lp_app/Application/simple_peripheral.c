@@ -155,7 +155,10 @@
 // How often to perform periodic event (in msec)
 #define MDP_PERIODIC_EVT_PERIOD               500  // 5000 Original
 #define MDP_LED_BLINK_EVT_PERIOD              250
-#define MDP_SENSOR_MOVE_EVT_PERIOD            250 //40
+#define MDP_SENSOR_MOVE_EVT_PERIOD            40 //40
+
+// Debounce timeout in milliseconds
+#define KEY_DEBOUNCE_TIMEOUT                  2 //200
 
 // Type of Display to open
 #if !defined(Display_DISABLE_ALL)
@@ -400,7 +403,7 @@ static void SensorIntCallBack(PIN_Handle hPin, PIN_Id pinId);
 // PIN configuration structure to set all KEY pins as inputs with pullups enabled
 PIN_Config keyPinsCfgSensorInt[] =
 {
-   Board_KEY1       | PIN_INPUT_EN  | PIN_PULLUP | PIN_HYSTERESIS,
+   Board_KEY1       | PIN_INPUT_EN  | PIN_PULLDOWN | PIN_HYSTERESIS,
 
 //   Board_BTN1          | PIN_GPIO_OUTPUT_DIS  | PIN_INPUT_EN  |  PIN_PULLUP, //PIN_PULLDOWN // PIN_PULLUP, // Shirzad
 //   Board_BTN2          | PIN_GPIO_OUTPUT_DIS  | PIN_INPUT_EN  |  PIN_PULLUP,
@@ -454,7 +457,6 @@ void MovedetectorSensor_keyChangeHandler(uint8 keysPressed);
 //static void Movedetector_handleKeys(uint8_t keys);
 static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys);
 
-static void SensorMovement_clockHandler(UArg arg);
 //uint8_t SimpleUART_initialize(Char *tRxBuf, Char *tTxBuf);
 //void Write_Hello(void);
 //static void NPITLUART_writeCallBack(UART_Handle handle, void *ptr, size_t size);
@@ -787,9 +789,6 @@ static void Movedetector_init(void)
 //  Util_constructClock(&sensorMovementClock, Movedetector_clockHandler,
 //                      MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
 
-//  Util_constructClock(&sensorMovementClock, SensorMovement_clockHandler,
- //                     MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, 0);
-
   // Initialize keys
  // Board_initKeys(MovedetectorSensor_keyChangeHandler);
 
@@ -799,18 +798,14 @@ static void Movedetector_init(void)
 
   PIN_registerIntCb(hKeyPinsSensorInt, SensorIntCallBack);
 
-  PIN_setConfig(hKeyPinsSensorInt, PIN_BM_IRQ, Board_BTN1        | PIN_IRQ_NEGEDGE); //PIN_IRQ_POSEDGE // PIN_IRQ_NEGEDGE); // Shirzad
+  PIN_setConfig(hKeyPinsSensorInt, PIN_BM_IRQ, Board_BTN1        | PIN_IRQ_POSEDGE); //PIN_IRQ_POSEDGE // PIN_IRQ_NEGEDGE); // Shirzad
 //  PIN_setConfig(hKeyPinsShirzad, PIN_BM_IRQ, Board_BTN2        | PIN_IRQ_NEGEDGE);
 
-  PIN_setConfig(hKeyPinsSensorInt, PINCC26XX_BM_WAKEUP, Board_BTN1        | PINCC26XX_WAKEUP_NEGEDGE); // PINCC26XX_WAKEUP_POSEDGE  PINCC26XX_WAKEUP_NEGEDGE); // Shirzad
+  PIN_setConfig(hKeyPinsSensorInt, PINCC26XX_BM_WAKEUP, Board_BTN1        | PINCC26XX_WAKEUP_POSEDGE); // PINCC26XX_WAKEUP_POSEDGE  PINCC26XX_WAKEUP_NEGEDGE); // Shirzad
 //  PIN_setConfig(hKeyPinsShirzad, PINCC26XX_BM_WAKEUP, Board_BTN2        | PINCC26XX_WAKEUP_NEGEDGE);
 
-  // Setup keycallback for keys
-//  Util_constructClock(&keyChangeClockShirzad, SensorMovement_clockHandler,
-//                      200, 0, false, 0);
   Util_constructClock(&sensorReadingClock, Movedetector_clockHandler,
                       MDP_SENSOR_MOVE_EVT_PERIOD, 0, false, MDP_SENSOR_MOVE_EVT);
-
 
   // Setup a debouncing timer
   Util_constructClock(&debouncerClock, InterruptDebouncer_clockHandler,
@@ -1233,6 +1228,7 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
                  // False Alarm (probably b/c of noise or if sensitivity is too high)
                  RPrintf("Noisy Movement!\r\n");
               }
+              EnableAccelerometerIntterupt (0x05, 2); // Enable sensor's interrupt again
           }
 
 
@@ -1856,7 +1852,7 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
           break;
 
         case ALARM_STATE_BUZ:
-          SensorConfiguration (0x05, 2); // Enable Sensor Interrupt
+            EnableAccelerometerIntterupt (0x05, 2); // Enable Sensor Interrupt
           break;
 
         case ALARM_STATE_LED:
@@ -2224,13 +2220,6 @@ static void MovedetectorSensor_handleKeys(uint8_t shift, uint8_t keys)
 void MovedetectorSensor_keyChangeHandler(uint8 keysPressed)
 {
   Movedetector_enqueueMsg(MDP_KEY_CHANGE_EVT, keysPressed);
-}
-
-
-static void SensorMovement_clockHandler(UArg arg)
-{
-    Toggle_led();
-
 }
 
 
