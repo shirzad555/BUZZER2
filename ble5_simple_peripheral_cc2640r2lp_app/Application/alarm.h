@@ -21,6 +21,35 @@ enum Alarm_Cmd {
 	ALARM_ERROR			= 0xFF
 };
 
+enum ALARM_SENSITIVITY {
+    ALARM_SENS_LOWEST       = 0x00,
+    ALARM_SENS_LOW          = 0x01,
+    ALARM_SENS_MID          = 0x02,
+    ALARM_SENS_HIGH         = 0x03,
+    ALARM_SENS_HIGHEST      = 0x04,
+    ALARM_SENS_ERROR        = 0xFF
+} ;
+
+enum ALARM_STATE {
+    ALARM_STATE_OFF         = 0x00,
+    ALARM_STATE_BUZ         = 0x01,
+    ALARM_STATE_LED         = 0x02,
+    ALARM_STATE_MSG         = 0x03,
+    ALARM_STATE_BUZ_LED     = 0x04,
+    ALARM_STATE_BUZ_MSG     = 0x05,
+    ALARM_STATE_LED_MSG     = 0x06,
+    ALARM_STATE_BUZ_LED_MSG = 0x07,
+    ALARM_STATE_ERROR       = 0xFF
+} ;
+
+enum MOVEMENT_MSG {
+    MOVEMENT_MSG_NONE       = 0x00,
+    MOVEMENT_MSG_LOW        = 0x01,
+    MOVEMENT_MSG_HIGH       = 0x02,
+    MOVEMENT_MSG_ERROR      = 0xFF
+} ;
+
+
 void InitMovementSensor(void);
 void ReadSensorValue(uint8_t counter);
 uint8_t CheckForMovement(void);

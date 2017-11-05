@@ -188,10 +188,10 @@ static void Board_keyCallback(PIN_Handle hPin, PIN_Id pinId)
     keysPressed |= KEY_LEFT;
   }
 
-  if ( PIN_getInputValue(Board_BTN2) == 0 )
-  {
-    keysPressed |= KEY_RIGHT;
-  }
+//  if ( PIN_getInputValue(Board_BTN2) == 0 )
+//  {
+//    keysPressed |= KEY_RIGHT;
+//  }
 #elif defined(CC2650DK_7ID)  || defined(CC1350DK_7XD)
   if ( PIN_getInputValue(Board_KEY_SELECT) == 0 )
   {

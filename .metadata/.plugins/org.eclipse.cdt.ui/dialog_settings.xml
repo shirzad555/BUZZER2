@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <section name="Workbench">
+	<item value="Default C source template" key="LastUsedSourceTemplate"/>
+	<item value="Default C header template" key="LastUsedHeaderTemplate"/>
 	<section name="org.eclipse.cdt.ui.OPEN_ACTION_SELECTION_DIALOG_SECTION">
 		<item value="1174" key="DIALOG_WIDTH"/>
 		<item value="1|Segoe UI|9.0|0|WINDOWS|1|-12|0|0|0|400|0|0|0|1|0|0|5|0|Segoe UI" key="DIALOG_FONT_NAME"/>
@@ -17,6 +19,17 @@
 		<item value="false" key="caseSensitive"/>
 		<item value="227191" key="searchFlags"/>
 		<list key="previousPatterns">
+			<item value="hKeyPinsShirzad"/>
+			<item value="keyPinsCfgShirzad"/>
+			<item value="keyPinsShirzad"/>
+			<item value="keyChangeClockShirzad"/>
+			<item value="Board_keyCallbackShirzad"/>
+			<item value="Movedetector_taskFxn"/>
+			<item value="Movedetector_init"/>
+			<item value="MDP_SENSOR_MOVE_EVT"/>
+			<item value="Hwi_Struct"/>
+			<item value="DisableAccelerometerIntterupt"/>
+			<item value="callbackHwiKeys"/>
 			<item value="SensorConfiguration"/>
 			<item value="CheckForMovement"/>
 			<item value="InitAccelerometer"/>

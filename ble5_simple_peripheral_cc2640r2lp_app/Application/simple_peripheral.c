@@ -158,6 +158,7 @@
 #define MDP_PERIODIC_EVT_PERIOD               500  // 5000 Original
 #define MDP_LED_BLINK_EVT_PERIOD              250
 #define MDP_SENSOR_MOVE_EVT_PERIOD            40 //40
+#define MDP_BUZZER_SOUND_EVT_PERIOD           100
 
 // Debounce timeout in milliseconds
 #define KEY_DEBOUNCE_TIMEOUT                  2 //200
@@ -216,6 +217,7 @@
 #define TRANSPORT_TX_DONE_EVENT               Event_Id_11
 #endif //TL
 
+#define MDP_BUZZER_SOUND_EVT                  Event_Id_12
 
 #ifdef FEATURE_OAD
 // Additional Application Events for OAD
@@ -234,6 +236,7 @@
                                                MDP_LED_BLINK_EVT    | \
                                                MDP_SENSOR_MOVE_EVT  | \
                                                MDP_MOVE_HAPPENED_EVT |\
+                                               MDP_BUZZER_SOUND_EVT |\
                                                MDP_PERIODIC_EVT)
 
                                                /*MDP_LED_BLINK_EVT    | \
@@ -282,6 +285,7 @@ Display_Handle dispHandle = NULL;
 /*********************************************************************
  * LOCAL VARIABLES
  */
+
 uint8_t tempMem = 0;
 // Entity ID globally used to check for source and/or destination of messages
 static ICall_EntityID selfEntity;
@@ -296,6 +300,9 @@ static ICall_SyncHandle syncEvent; // Synchronization object data type
 static Clock_Struct periodicClock;
 static Clock_Struct ledBlinkClock;
 static Clock_Struct sensorMovementClock;
+
+// Buzzer clock for alarm sounding buz
+static Clock_Struct buzzerClock;
 
 // Key debounce clock
 static Clock_Struct debouncerClock;
@@ -396,6 +403,7 @@ static uint8_t rspTxRetry = 0;
 
 uint8_t ledBlinkCount = 0;
 uint8_t sensorCheckCount = 0;
+uint8_t buzzerSoundCount = 0;
 
 #if defined (NPI_USE_UART) || defined (NPI_USE_SPI)
 //used to store data read from transport layer
@@ -605,6 +613,10 @@ static void Movedetector_init(void)
   // Create one-shot clocks for led_blinking events.
   Util_constructClock(&ledBlinkClock, Movedetector_clockHandler,
                       MDP_LED_BLINK_EVT_PERIOD, 0, false, MDP_LED_BLINK_EVT);
+
+  // Create one-shot clocks for buzzer alarming events.
+  Util_constructClock(&buzzerClock, Movedetector_clockHandler,
+                      MDP_BUZZER_SOUND_EVT_PERIOD, 0, false, MDP_BUZZER_SOUND_EVT);
 
   // Create one-shot clocks for sensor events.
 //  Util_constructClock(&sensorMovementClock, Movedetector_clockHandler,
@@ -1001,6 +1013,16 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
           //PINCC26XX_setOutputValue(Board_RLED, Board_LED_OFF);
           }
       }
+      if ( events & MDP_BUZZER_SOUND_EVT) // events & MDP_LED_BLINK_EVT &&
+      {
+          events &= ~MDP_BUZZER_SOUND_EVT;
+          if (buzzerSoundCount > 0)
+          {
+              buzzerSoundCount--;
+              Util_startClock(&buzzerClock);  // start the next clock, this will continue until the led blink counter is zero
+              Toggle_Buzzer();
+          }
+      }
       if (events & MDP_SENSOR_MOVE_EVT)
       {
           events &= ~MDP_SENSOR_MOVE_EVT;  // if no code after this, GAPROLE never goes to advertising!!!
@@ -1028,10 +1050,11 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
           }
       } //
       /* This event triggered by the clock starts when the device is moved based on decision made in MDP_SENSOR_MOVE_EVT event*/
-      if (events & MDP_MOVE_HAPPENED_EVT_PERIOD)
+      if (events & MDP_MOVE_HAPPENED_EVT)
       {
-          events &= ~MDP_MOVE_HAPPENED_EVT_PERIOD;
+          events &= ~MDP_MOVE_HAPPENED_EVT;
           uint8_t newValue;
+          uint8_t valueToCopy;
 
           //Util_restartClock(&movementHappenedClock, MDP_MOVE_HAPPENED_EVT_PERIOD);
           Movedetector_GetParameter(MD_CHAR_ALARM_STATE, &newValue);
@@ -1039,12 +1062,22 @@ static void Movedetector_taskFxn(UArg a0, UArg a1)
           switch(newValue)
           {
           case ALARM_STATE_BUZ:
-              BuzzerOnOff(1);
+              //BuzzerOnOff(1);
+              buzzerSoundCount = 20;
+              Util_startClock(&buzzerClock);
               break;
           case ALARM_STATE_LED:
-              ledBlinkCount = 15;
+              ledBlinkCount = 16;
               Util_startClock(&ledBlinkClock);
-            break;
+              break;
+          case ALARM_STATE_MSG:
+              valueToCopy = MOVEMENT_MSG_HIGH;
+              // Call to set that value of the fourth characteristic in the profile.
+              // Note that if notifications of the fourth characteristic have been
+              // enabled by a GATT client device, then a notification will be sent
+              // every time this function is called.
+              Movedetector_SetParameter(MD_CHAR_MVMNT_MSG, sizeof(uint8_t), &valueToCopy); // send notification to read MD_CHAR_MVMNT_MSG value (valueToCopy)
+              break;
           }
       }
 
@@ -1480,6 +1513,9 @@ static void Movedetector_processStateChangeEvt(gaprole_States_t newState)
 
         numActive = linkDB_NumActive();
 
+        /* discovery service */
+        //simpleBLEState = BLE_STATE_CONNECTED;
+
         // Use numActive to determine the connection handle of the last
         // connection
         RPrintf("GAPROLE_CONNECTED\r\n");
@@ -1663,6 +1699,9 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
         {
         case ALARM_STATE_OFF:
           //PINCC26XX_setOutputValue(Board_BLED, LED_OFF);
+          BuzzerOnOff(0);
+          buzzerSoundCount = 0;
+          ledBlinkCount = 0;
           DisableAccelerometerIntterupt();
           break;
 
@@ -1691,6 +1730,7 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
           break;
 
         case ALARM_STATE_BUZ_LED_MSG:
+            PINCC26XX_setOutputValue(Board_WAKEUP_H, 0); // TODO // LDO Power Off for now
             EnableAccelerometerIntterupt (0x05, 2); // Enable Sensor Interrupt
           break;
 
@@ -1712,7 +1752,23 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 
     case MD_CHAR_MVMNT_MSG:
         Movedetector_GetParameter(MD_CHAR_MVMNT_MSG, &newValue);
+        DisableAccelerometerIntterupt();
 
+/*      switch(newValue)
+        {
+        case MOVEMENT_MSG_NONE:
+          DisableAccelerometerIntterupt();
+          break;
+        case MOVEMENT_MSG_LOW:
+          DisableAccelerometerIntterupt();
+          break;
+        case MOVEMENT_MSG_HIGH:
+          DisableAccelerometerIntterupt();
+          break;
+        case MOVEMENT_MSG_ERROR:
+          DisableAccelerometerIntterupt();
+          break;
+*/
         RPrintf("Alarm Message = ");
         newValue = newValue + 48; // convert to ascii
         TLwrite (&newValue, 1);
@@ -1745,21 +1801,27 @@ static void Movedetector_processCharValueChangeEvt(uint8_t paramID)
 static void Movedetector_performPeriodicTask(void)
 {
 #ifndef FEATURE_OAD_ONCHIP
-  uint8_t valueToCopy;
+  //uint8_t valueToCopy = MOVEMENT_MSG_LOW;
 
   if(1) //(tempMem == 1)
   {
-      uint8_t bVal = PINCC26XX_getOutputValue(Board_GLED);
-      PINCC26XX_setOutputValue(Board_GLED, !bVal);
+      //PINCC26XX_setOutputEnable(Board_UART_TX, 1);
+      //uint8_t bVal = PINCC26XX_getOutputValue(Board_UART_TX); // Board_UART_TX //Board_GLED
+      //PINCC26XX_setOutputValue(Board_UART_TX, !bVal); //
+      //uint8_t bVal = PINCC26XX_getOutputValue(Board_GLED); // Board_UART_TX //Board_GLED
+      //PINCC26XX_setOutputValue(Board_GLED, !bVal); //
+      //Movedetector_GetParameter(MD_CHAR_MVMNT_MSG, &valueToCopy);
+      //valueToCopy++;
+      //Movedetector_SetParameter(MD_CHAR_MVMNT_MSG, sizeof(uint8_t), &valueToCopy);
   }
-  if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
-  {
+ // if (Movedetector_GetParameter(MD_CHAR_LED_STATE, &valueToCopy) == SUCCESS)
+ // {
     // Call to set that value of the fourth characteristic in the profile.
     // Note that if notifications of the fourth characteristic have been
     // enabled by a GATT client device, then a notification will be sent
     // every time this function is called.
     //SimpleProfile_SetParameter(SIMPLEPROFILE_CHAR4, sizeof(uint8_t), &valueToCopy);
-  }
+ // }
 #endif //!FEATURE_OAD_ONCHIP
 }
 

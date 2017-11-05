@@ -25,9 +25,12 @@ void Led_init(void)
 	  PINCC26XX_setOutputValue(Board_RLED, LED_OFF);
 
 	  PINCC26XX_setOutputEnable(Buzzer_SHDN_N, 1);
-	  PINCC26XX_setOutputValue(Buzzer_SHDN_N, 1); // Power On
+	  PINCC26XX_setOutputValue(Buzzer_SHDN_N, 1); // Buzzer Power On
 	  PINCC26XX_setOutputEnable(Buzzer_PWM, 1);
 	  PINCC26XX_setOutputValue(Buzzer_PWM, 1);	  // 1 = Disable, 0 = Enable
+
+	  PINCC26XX_setOutputEnable(Board_WAKEUP_H, 1);
+	  PINCC26XX_setOutputValue(Board_WAKEUP_H, 1); // LDO Power On
 }
 
 void Toggle_led(void)

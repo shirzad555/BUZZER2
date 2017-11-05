@@ -66,7 +66,7 @@
  * CONSTANTS
  */
 
-#define SERVAPP_NUM_ATTR_SUPPORTED        13 //14 //11 //17
+#define SERVAPP_NUM_ATTR_SUPPORTED        14 // 13 //14 //11 //17
 
 /*********************************************************************
  * TYPEDEFS
@@ -257,7 +257,9 @@ static uint8 movedetectorChar3UserDesp[13] = "Alarm State\0";
 
 
 // MoveDetector Service Characteristic 4 Properties
-static uint8 movedetectorChar4Props = GATT_PROP_READ | GATT_PROP_WRITE;
+static uint8 movedetectorChar4Props = GATT_PROP_NOTIFY; //GATT_PROP_READ | GATT_PROP_WRITE;
+
+static gattCharCfg_t *alarmMessageChar4Config;
 
 // Characteristic 4 Value
 static uint8 alarmMessageCharValue = 0;
@@ -374,6 +376,14 @@ static gattAttribute_t movedetectorAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
     GATT_PERMIT_READ | GATT_PERMIT_WRITE,
     0,
     &alarmMessageCharValue
+  },
+
+  // Characteristic 4 configuration
+  {
+    { ATT_BT_UUID_SIZE, clientCharCfgUUID },
+    GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+    0,
+    (uint8 *)&alarmMessageChar4Config
   },
 
   // Characteristic 4 User Description
@@ -653,15 +663,15 @@ bStatus_t Movedetector_AddService( uint32 services )
   uint8 status;
 
   // Allocate Client Characteristic Configuration table
-//  movedetectorChar2Config = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) *
-//                                                            linkDBNumConns );
-//  if ( movedetectorChar2Config == NULL )
-//  {
-//    return ( bleMemAllocError );
-//  }
+  alarmMessageChar4Config = (gattCharCfg_t *)ICall_malloc( sizeof(gattCharCfg_t) *
+                                                            linkDBNumConns );
+  if ( alarmMessageChar4Config == NULL )
+  {
+    return ( bleMemAllocError );
+  }
 
   // Initialize Client Characteristic Configuration attributes
-//  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, movedetectorChar2Config );
+  GATTServApp_InitCharCfg( INVALID_CONNHANDLE, alarmMessageChar4Config );
 
   // Register GATT attribute list and CBs with GATT Server App
   status = GATTServApp_RegisterService( movedetectorAttrTbl,
@@ -809,6 +819,11 @@ bStatus_t Movedetector_SetParameter( uint8 param, uint8 len, void *value )
      if ( len == sizeof ( uint8 ) )
      {
          alarmMessageCharValue = *((uint8*)value);
+
+         // Try to send notification.
+         GATTServApp_ProcessCharCfg( alarmMessageChar4Config, &alarmMessageCharValue, FALSE,
+                                     movedetectorAttrTbl, GATT_NUM_ATTRS( movedetectorAttrTbl ),
+                                     INVALID_TASK_ID, movedetector_ReadAttrCB );
      }
      else
      {

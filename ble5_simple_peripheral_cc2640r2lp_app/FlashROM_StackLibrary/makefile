@@ -39,6 +39,7 @@ ORDERED_OBJS += \
 "./Startup/board.obj" \
 "./Startup/ccfg_app_ble.obj" \
 "./Startup/main.obj" \
+"./extras/PWM.obj" \
 $(GEN_CMDS__FLAG) \
 -l"C:/ti/simplelink_cc2640r2_sdk_1_40_00_45/source/ti/devices/cc26x0r2/driverlib/bin/ccs/driverlib.lib" \
 -l"C:/ti/simplelink_cc2640r2_sdk_1_40_00_45/kernel/tirtos/packages/ti/dpl/lib/dpl_cc26x0r2.aem3" \
@@ -68,6 +69,7 @@ RMDIR := RMDIR /S/Q
 -include PROFILES/subdir_vars.mk
 -include Startup/subdir_vars.mk
 -include TOOLS/subdir_vars.mk
+-include extras/subdir_vars.mk
 -include Application/subdir_rules.mk
 -include Drivers/ECC/subdir_rules.mk
 -include Drivers/TRNG/subdir_rules.mk
@@ -76,6 +78,7 @@ RMDIR := RMDIR /S/Q
 -include PROFILES/subdir_rules.mk
 -include Startup/subdir_rules.mk
 -include TOOLS/subdir_rules.mk
+-include extras/subdir_rules.mk
 -include objects.mk
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -211,8 +214,8 @@ ble5_simple_peripheral_cc2640r2lp_app.hex: $(EXE_OUTPUTS)
 clean:
 	-$(RM) $(GEN_CMDS__QUOTED)$(GEN_MISC_FILES__QUOTED)$(BIN_OUTPUTS__QUOTED)$(GEN_FILES__QUOTED)$(EXE_OUTPUTS__QUOTED)$(GEN_OPTS__QUOTED)
 	-$(RMDIR) $(GEN_MISC_DIRS__QUOTED)
-	-$(RM) "Application\LIS3DH_Driver.obj" "Application\alarm.obj" "Application\board_key.obj" "Application\buzzer.obj" "Application\console.obj" "Application\led.obj" "Application\npi_rxbuf.obj" "Application\npi_tl.obj" "Application\npi_tl_uart.obj" "Application\simple_peripheral.obj" "Application\simple_peripheral_menu.obj" "Application\tl.obj" "Application\two_btn_menu.obj" "Application\util.obj" "Drivers\ECC\ECCROMCC26XX.obj" "Drivers\TRNG\TRNGCC26XX.obj" "ICall\icall.obj" "ICall\icall_cc2650.obj" "ICall\icall_user_config.obj" "ICallBLE\ble_user_config.obj" "ICallBLE\icall_api_lite.obj" "PROFILES\devinfoservice.obj" "PROFILES\gatt_uuid.obj" "PROFILES\gattservapp_util.obj" "PROFILES\peripheral.obj" "PROFILES\simple_gatt_profile.obj" "Startup\board.obj" "Startup\ccfg_app_ble.obj" "Startup\main.obj" 
-	-$(RM) "Application\LIS3DH_Driver.d" "Application\alarm.d" "Application\board_key.d" "Application\buzzer.d" "Application\console.d" "Application\led.d" "Application\npi_rxbuf.d" "Application\npi_tl.d" "Application\npi_tl_uart.d" "Application\simple_peripheral.d" "Application\simple_peripheral_menu.d" "Application\tl.d" "Application\two_btn_menu.d" "Application\util.d" "Drivers\ECC\ECCROMCC26XX.d" "Drivers\TRNG\TRNGCC26XX.d" "ICall\icall.d" "ICall\icall_cc2650.d" "ICall\icall_user_config.d" "ICallBLE\ble_user_config.d" "ICallBLE\icall_api_lite.d" "PROFILES\devinfoservice.d" "PROFILES\gatt_uuid.d" "PROFILES\gattservapp_util.d" "PROFILES\peripheral.d" "PROFILES\simple_gatt_profile.d" "Startup\board.d" "Startup\ccfg_app_ble.d" "Startup\main.d" 
+	-$(RM) "Application\LIS3DH_Driver.obj" "Application\alarm.obj" "Application\board_key.obj" "Application\buzzer.obj" "Application\console.obj" "Application\led.obj" "Application\npi_rxbuf.obj" "Application\npi_tl.obj" "Application\npi_tl_uart.obj" "Application\simple_peripheral.obj" "Application\simple_peripheral_menu.obj" "Application\tl.obj" "Application\two_btn_menu.obj" "Application\util.obj" "Drivers\ECC\ECCROMCC26XX.obj" "Drivers\TRNG\TRNGCC26XX.obj" "ICall\icall.obj" "ICall\icall_cc2650.obj" "ICall\icall_user_config.obj" "ICallBLE\ble_user_config.obj" "ICallBLE\icall_api_lite.obj" "PROFILES\devinfoservice.obj" "PROFILES\gatt_uuid.obj" "PROFILES\gattservapp_util.obj" "PROFILES\peripheral.obj" "PROFILES\simple_gatt_profile.obj" "Startup\board.obj" "Startup\ccfg_app_ble.obj" "Startup\main.obj" "extras\PWM.obj" 
+	-$(RM) "Application\LIS3DH_Driver.d" "Application\alarm.d" "Application\board_key.d" "Application\buzzer.d" "Application\console.d" "Application\led.d" "Application\npi_rxbuf.d" "Application\npi_tl.d" "Application\npi_tl_uart.d" "Application\simple_peripheral.d" "Application\simple_peripheral_menu.d" "Application\tl.d" "Application\two_btn_menu.d" "Application\util.d" "Drivers\ECC\ECCROMCC26XX.d" "Drivers\TRNG\TRNGCC26XX.d" "ICall\icall.d" "ICall\icall_cc2650.d" "ICall\icall_user_config.d" "ICallBLE\ble_user_config.d" "ICallBLE\icall_api_lite.d" "PROFILES\devinfoservice.d" "PROFILES\gatt_uuid.d" "PROFILES\gattservapp_util.d" "PROFILES\peripheral.d" "PROFILES\simple_gatt_profile.d" "Startup\board.d" "Startup\ccfg_app_ble.d" "Startup\main.d" "extras\PWM.d" 
 	-@echo 'Finished clean'
 	-@echo ' '
 

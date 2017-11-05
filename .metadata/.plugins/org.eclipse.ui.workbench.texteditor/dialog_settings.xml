@@ -2,20 +2,20 @@
 <section name="Workbench">
 	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
 		<item value="false" key="isRegEx"/>
-		<item value="periodicClock" key="selection"/>
-		<item value="true" key="casesensitive"/>
+		<item value="Toggle" key="selection"/>
+		<item value="false" key="casesensitive"/>
 		<item value="false" key="incremental"/>
 		<item value="true" key="wrap"/>
 		<item value="false" key="wholeword"/>
 		<list key="findhistory">
-			<item value="periodicClock"/>
-			<item value="sensorMovementClock"/>
-			<item value="MovedetectorSensor_keyChangeHandler"/>
-			<item value="EXTI"/>
+			<item value="toggle"/>
+			<item value="movementHappenedClock"/>
+			<item value="BUZ"/>
 			<item value="MDP_SENSOR_MOVE_EVT"/>
-			<item value="EINT"/>
-			<item value="ALARM_MOVEMENT_THRESHOLD"/>
-			<item value="sensorCheckCount"/>
+			<item value="sensorReadingClock"/>
+			<item value="EnableAccelerometerIntterupt"/>
+			<item value="BUZ_ON"/>
+			<item value="BUZ_OFF"/>
 		</list>
 		<list key="replacehistory">
 			<item value="Movedetector_"/>
@@ -25,7 +25,7 @@
 		<item value="284" key="DIALOG_WIDTH"/>
 		<item value="1|Segoe UI|9.0|0|WINDOWS|1|-12|0|0|0|400|0|0|0|1|0|0|5|0|Segoe UI" key="DIALOG_FONT_NAME"/>
 		<item value="391" key="DIALOG_HEIGHT"/>
-		<item value="1239" key="DIALOG_X_ORIGIN"/>
-		<item value="139" key="DIALOG_Y_ORIGIN"/>
+		<item value="1129" key="DIALOG_X_ORIGIN"/>
+		<item value="118" key="DIALOG_Y_ORIGIN"/>
 	</section>
 </section>
